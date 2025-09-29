@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -238,16 +237,7 @@ func (wm *WorktreeManager) isWorktreeLocked(worktreeDir string) bool {
 }
 
 func (wm *WorktreeManager) getWorktreeCreatedTime(path string) (time.Time, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		return time.Unix(stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec), nil
-	}
-
-	return info.ModTime(), nil
+	return getCreatedTime(path)
 }
 
 func (wm *WorktreeManager) IsBranchMerged(branch, baseBranch string) (bool, error) {
