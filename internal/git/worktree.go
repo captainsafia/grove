@@ -13,7 +13,9 @@ import (
 )
 
 type WorktreeManager struct {
-	repo *git.Repository
+	repo   *git.Repository
+	gitDir string
+	isBare bool
 }
 
 func NewWorktreeManager() (*WorktreeManager, error) {
@@ -22,14 +24,73 @@ func NewWorktreeManager() (*WorktreeManager, error) {
 		return nil, fmt.Errorf("failed to get working directory: %w", err)
 	}
 
+	// Try to open as a regular repository first (with .git directory)
 	repo, err := git.PlainOpenWithOptions(wd, &git.PlainOpenOptions{
 		DetectDotGit: true,
 	})
+	
+	// If that fails, try to open as a bare repository
 	if err != nil {
-		return nil, fmt.Errorf("not in a git repository: %w", err)
+		repo, err = git.PlainOpen(wd)
+		if err != nil {
+			return nil, fmt.Errorf("not in a git repository: %w", err)
+		}
 	}
 
-	return &WorktreeManager{repo: repo}, nil
+	// Check if the repository is bare
+	isBare := checkIfBare(repo, wd)
+	
+	// Determine the git directory
+	gitDir := wd
+	if !isBare {
+		// For non-bare repos, the git dir is in .git subdirectory
+		worktree, err := repo.Worktree()
+		if err == nil {
+			gitDirPath := filepath.Join(worktree.Filesystem.Root(), ".git")
+			if info, err := os.Stat(gitDirPath); err == nil && info.IsDir() {
+				gitDir = gitDirPath
+			} else {
+				// Handle gitdir file for linked worktrees
+				gitDirBytes, err := os.ReadFile(gitDirPath)
+				if err == nil {
+					gitDirContent := strings.TrimSpace(string(gitDirBytes))
+					if strings.HasPrefix(gitDirContent, "gitdir: ") {
+						gitDirContent = strings.TrimPrefix(gitDirContent, "gitdir: ")
+						if !filepath.IsAbs(gitDirContent) {
+							gitDirContent = filepath.Join(filepath.Dir(gitDirPath), gitDirContent)
+						}
+						gitDir = gitDirContent
+					}
+				}
+			}
+		}
+	}
+
+	return &WorktreeManager{
+		repo:   repo,
+		gitDir: gitDir,
+		isBare: isBare,
+	}, nil
+}
+
+func checkIfBare(repo *git.Repository, wd string) bool {
+	// Try to get worktree - if it fails, it's likely a bare repo
+	_, err := repo.Worktree()
+	if err != nil {
+		return true
+	}
+	
+	// Additional check: look for HEAD, refs, objects in current directory
+	// which indicates a bare repository structure
+	headPath := filepath.Join(wd, "HEAD")
+	refsPath := filepath.Join(wd, "refs")
+	objectsPath := filepath.Join(wd, "objects")
+	
+	_, headErr := os.Stat(headPath)
+	_, refsErr := os.Stat(refsPath)
+	_, objErr := os.Stat(objectsPath)
+	
+	return headErr == nil && refsErr == nil && objErr == nil
 }
 
 func (wm *WorktreeManager) Close() {
@@ -38,11 +99,14 @@ func (wm *WorktreeManager) Close() {
 func (wm *WorktreeManager) ListWorktrees() ([]models.Worktree, error) {
 	var worktrees []models.Worktree
 
-	mainWorktree, err := wm.getMainWorktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get main worktree: %w", err)
+	// Only get main worktree if this is not a bare repository
+	if !wm.isBare {
+		mainWorktree, err := wm.getMainWorktree()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get main worktree: %w", err)
+		}
+		worktrees = append(worktrees, mainWorktree)
 	}
-	worktrees = append(worktrees, mainWorktree)
 
 	linkedWorktrees, err := wm.getLinkedWorktrees()
 	if err != nil {
@@ -123,31 +187,7 @@ func (wm *WorktreeManager) getLinkedWorktrees() ([]models.Worktree, error) {
 }
 
 func (wm *WorktreeManager) getGitDir() string {
-	worktree, err := wm.repo.Worktree()
-	if err != nil {
-		return ""
-	}
-
-	gitDir := filepath.Join(worktree.Filesystem.Root(), ".git")
-	if info, err := os.Stat(gitDir); err == nil && info.IsDir() {
-		return gitDir
-	}
-
-	gitDirBytes, err := os.ReadFile(gitDir)
-	if err != nil {
-		return ""
-	}
-
-	gitDirPath := strings.TrimSpace(string(gitDirBytes))
-	if strings.HasPrefix(gitDirPath, "gitdir: ") {
-		gitDirPath = strings.TrimPrefix(gitDirPath, "gitdir: ")
-		if !filepath.IsAbs(gitDirPath) {
-			gitDirPath = filepath.Join(filepath.Dir(gitDir), gitDirPath)
-		}
-		return gitDirPath
-	}
-
-	return gitDir
+	return wm.gitDir
 }
 
 func (wm *WorktreeManager) parseWorktreeDir(worktreeDir string) (models.Worktree, error) {
