@@ -1,11 +1,14 @@
 package git
 
 import (
+	"bytes"
 	"fmt"
 	"grove/internal/models"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -156,13 +159,11 @@ func (wm *WorktreeManager) getMainWorktree() (models.Worktree, error) {
 }
 
 func (wm *WorktreeManager) getLinkedWorktrees() ([]models.Worktree, error) {
-	var worktrees []models.Worktree
-
 	gitDir := wm.getGitDir()
 	worktreesDir := filepath.Join(gitDir, "worktrees")
 
 	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
-		return worktrees, nil
+		return nil, nil
 	}
 
 	entries, err := os.ReadDir(worktreesDir)
@@ -170,17 +171,40 @@ func (wm *WorktreeManager) getLinkedWorktrees() ([]models.Worktree, error) {
 		return nil, fmt.Errorf("failed to read worktrees directory: %w", err)
 	}
 
+	// Process worktrees in parallel for better performance
+	type result struct {
+		worktree models.Worktree
+		err      error
+	}
+
+	results := make(chan result, len(entries))
+	var wg sync.WaitGroup
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
-		worktree, err := wm.parseWorktreeDir(filepath.Join(worktreesDir, entry.Name()))
-		if err != nil {
-			continue
-		}
+		wg.Add(1)
+		go func(entryName string) {
+			defer wg.Done()
+			worktree, err := wm.parseWorktreeDir(filepath.Join(worktreesDir, entryName))
+			results <- result{worktree: worktree, err: err}
+		}(entry.Name())
+	}
 
-		worktrees = append(worktrees, worktree)
+	// Close results channel when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results
+	var worktrees []models.Worktree
+	for res := range results {
+		if res.err == nil {
+			worktrees = append(worktrees, res.worktree)
+		}
 	}
 
 	return worktrees, nil
@@ -247,6 +271,20 @@ func (wm *WorktreeManager) isWorktreeDirty(path string) (bool, error) {
 		return false, nil
 	}
 
+	// Use git status --porcelain which is faster than go-git's Status()
+	// for checking if a worktree has changes
+	cmd := exec.Command("git", "-C", path, "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		// Fallback to go-git if git command fails
+		return wm.isWorktreeDirtyGoGit(path)
+	}
+
+	// If output is empty, the worktree is clean
+	return len(bytes.TrimSpace(output)) > 0, nil
+}
+
+func (wm *WorktreeManager) isWorktreeDirtyGoGit(path string) (bool, error) {
 	repo, err := git.PlainOpen(path)
 	if err != nil {
 		return false, err
