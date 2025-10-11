@@ -11,6 +11,7 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 - Create new Git repo setup with a bare clone to support worktrees
 - List worktrees with creation dates and dirty status
 - Prune worktrees associated with branches merged to main
+- Prune worktrees older than a specified duration (30d, 6M, 1y, etc.)
 
 ## Installation
 
@@ -85,6 +86,24 @@ Use a different base branch:
 
 ```bash
 grove prune --base develop
+```
+
+Remove worktrees older than a specific duration (bypasses merge check):
+
+**Note:** When using `--older-than`, the merge status check is bypassed, and all worktrees older than the specified duration will be removed. The `--base` flag cannot be used with `--older-than`.
+
+```bash
+# Remove worktrees older than 30 days
+grove prune --older-than 30d
+
+# Remove worktrees older than 6 months
+grove prune --older-than 6M
+
+# Remove worktrees older than 1 year
+grove prune --older-than 1y
+
+# Preview what would be removed for worktrees older than 2 weeks
+grove prune --older-than 2w --dry-run
 ```
 
 ## Commands
