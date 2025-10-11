@@ -1,11 +1,16 @@
-# Grove
+# grove
 
-A CLI tool for managing Git worktrees.
+<div align="center">
+  <img src="assets/logo.png" alt="Grove Logo" width="200"/>
+</div>
+
+Grove is a CLI tool that encapsulates the patterns that I use for working with Git worktrees locally on my machine. To learn more about this pattern, you can check out [this blog post](https://blog.safia.rocks/2025/09/03/git-worktrees/).
 
 ## Features
 
-- **List worktrees** with creation dates and dirty status
-- **Prune worktrees** associated with branches merged to main
+- Create new Git repo setup with a bare clone to support worktrees
+- List worktrees with creation dates and dirty status
+- Prune worktrees associated with branches merged to main
 
 ## Installation
 
@@ -13,13 +18,30 @@ A CLI tool for managing Git worktrees.
 
 Download the latest release from [GitHub Releases](https://github.com/captainsafia/grove/releases).
 
-### Go Install
+## Usage
+
+### Initialize a new worktree setup
+
+Create a new directory structure optimized for git worktree workflows:
 
 ```bash
-go install github.com/captainsafia/grove@latest
+grove init https://github.com/user/repo.git
 ```
 
-## Usage
+This command will:
+
+- Create a directory named after the repository (e.g., `repo/`)
+- Clone the repository as a bare clone into `repo/repo.git/`
+- Configure the remote fetch to support all branches
+- Provide instructions for creating worktrees
+
+After initialization, you can create worktrees:
+
+```bash
+cd repo
+git worktree add main main
+git worktree add feature/new-feature origin/feature/new-feature
+```
 
 ### List all worktrees
 
@@ -67,28 +89,11 @@ grove prune --base develop
 
 ## Commands
 
+- `grove init` - Create a new worktree setup
 - `grove list` - List all worktrees
 - `grove prune` - Remove worktrees for merged branches
 - `grove version` - Show version information
 - `grove help` - Show help
-
-## Release Process
-
-To create a new release:
-
-1. Create and push a new tag:
-
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-
-2. GitHub Actions will automatically:
-   - Build binaries for Linux, macOS, and Windows
-   - Create a GitHub release with binaries
-   - Generate checksums
-   - Build and push Docker images
-   - Update package repositories (Homebrew, Scoop)
 
 ## Development
 

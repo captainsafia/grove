@@ -84,6 +84,20 @@ release:
   name_template: "{{.ProjectName}} v{{.Version}}"
   header: |
     ## Grove v{{.Version}}
+
+    Grove is a CLI tool for managing Git worktrees. This release includes binaries for Linux, macOS, and Windows.
+
+    To install or upgrade Grove, acquire the binary for your platform from the release below then run:
+
+    ```bash
+    # Extract the archive
+    tar -xzf grove_<OS>_<ARCH>.tar.gz
+
+    # Move the binary to a directory in your PATH
+    sudo mv grove /usr/local/bin/
+
+    # Make it executable (if needed)
+    chmod +x /usr/local/bin/grove
     ```
   footer: |
     **Full Changelog**: https://github.com/captainsafia/grove/compare/{{ .PreviousTag }}...{{ .Tag }}
