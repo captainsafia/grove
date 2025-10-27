@@ -1,0 +1,10 @@
+src/
+*.ts
+tsconfig.json
+jest.config.js
+.github/
+tests/
+coverage/
+*.log
+.env
+.DS_Store

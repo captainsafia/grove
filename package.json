@@ -1,0 +1,59 @@
+{
+  "name": "@captainsafia/grove",
+  "version": "1.0.0",
+  "description": "A CLI tool for managing Git worktrees with TypeScript",
+  "keywords": [
+    "git",
+    "worktree",
+    "cli",
+    "typescript"
+  ],
+  "homepage": "https://github.com/captainsafia/grove",
+  "bugs": {
+    "url": "https://github.com/captainsafia/grove/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/captainsafia/grove.git"
+  },
+  "license": "MIT",
+  "author": "Safia Abdalla",
+  "main": "dist/index.js",
+  "bin": {
+    "grove": "dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "clean": "rm -rf dist",
+    "prepare": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.3",
+    "commander": "^12.0.0",
+    "inquirer": "^9.0.0",
+    "moment": "^2.30.1",
+    "simple-git": "^3.20.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.0",
+    "@types/moment": "^2.11.29",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "preferGlobal": true,
+  "publishConfig": {
+    "access": "public"
+  }
+}
