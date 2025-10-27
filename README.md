@@ -15,9 +15,26 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 
 ## Installation
 
-### Download Binary
+### Install globally via npm
 
-Download the latest release from [GitHub Releases](https://github.com/captainsafia/grove/releases).
+```bash
+npm install -g @captainsafia/grove
+grove <command>
+```
+
+### Install from GitHub Packages
+
+```bash
+npm install -g @captainsafia/grove --registry=https://npm.pkg.github.com
+grove <command>
+```
+
+### Install locally in a project
+
+```bash
+npm install @captainsafia/grove
+npx grove <command>
+```
 
 ## Usage
 
@@ -108,27 +125,43 @@ grove prune --older-than 2w --dry-run
 
 ## Commands
 
-- `grove init` - Create a new worktree setup
-- `grove list` - List all worktrees
-- `grove prune` - Remove worktrees for merged branches
+- `grove init <git-url>` - Create a new worktree setup
+- `grove list [options]` - List all worktrees
+- `grove prune [options]` - Remove worktrees for merged branches
 - `grove version` - Show version information
-- `grove help` - Show help
+- `grove help [command]` - Show help
 
 ## Development
 
 ### Prerequisites
 
-- Go 1.23 or later
+- Node.js 20.0 or later
+- npm or yarn
 - Git
 
-### Build
+### Setup
 
 ```bash
-go build -o grove .
+# Clone the repository
+git clone https://github.com/captainsafia/grove.git
+cd grove
+
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
 ```
 
-### Test
+### Development Commands
 
 ```bash
-go test ./...
+# Build the project
+npm run build
+
+# Type check the code
+npm run typecheck
+
+# Clean build artifacts
+npm run clean
 ```
