@@ -58,6 +58,46 @@ export class WorktreeManager {
     }
   }
 
+  async *streamWorktrees(): AsyncGenerator<Worktree, void, unknown> {
+    try {
+      const result = await this.git.raw(["worktree", "list", "--porcelain"]);
+      const lines = result.trim().split("\n");
+
+      let currentWorktree: Partial<Worktree> = {};
+      let isBare = false;
+
+      for (const line of lines) {
+        if (line.startsWith("worktree ")) {
+          if (currentWorktree.path && !isBare) {
+            const completedWorktree = await this.completeWorktreeInfo(currentWorktree as Worktree);
+            yield completedWorktree;
+          }
+          currentWorktree = { path: line.substring(9) };
+          isBare = false; // Reset for new worktree
+        } else if (line.startsWith("HEAD ")) {
+          currentWorktree.head = line.substring(5);
+        } else if (line.startsWith("branch ")) {
+          currentWorktree.branch = line.substring(7).replace("refs/heads/", "");
+        } else if (line === "detached") {
+          currentWorktree.branch = "detached HEAD";
+        } else if (line === "locked") {
+          currentWorktree.isLocked = true;
+        } else if (line === "prunable") {
+          currentWorktree.isPrunable = true;
+        } else if (line === "bare") {
+          isBare = true;
+        }
+      }
+
+      if (currentWorktree.path && !isBare) {
+        const completedWorktree = await this.completeWorktreeInfo(currentWorktree as Worktree);
+        yield completedWorktree;
+      }
+    } catch (error) {
+      throw new Error(`Failed to list worktrees: ${error}`);
+    }
+  }
+
   private async parseWorktreeList(output: string): Promise<Worktree[]> {
     const worktrees: Worktree[] = [];
     const lines = output.trim().split("\n");
