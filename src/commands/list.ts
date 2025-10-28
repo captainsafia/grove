@@ -1,6 +1,5 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import Table from "cli-table3";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { Worktree, WorktreeListOptions } from "../models";
 import { formatCreatedTime } from "../utils";
@@ -32,80 +31,81 @@ async function runList(options: WorktreeListOptions): Promise<void> {
   const manager = new WorktreeManager();
   await manager.initialize();
 
-  const worktrees = await manager.listWorktrees();
+  let foundAny = false;
+  let matchingCount = 0;
 
-  const filteredWorktrees = filterWorktrees(worktrees, options);
+  // Show legend if details are requested
+  if (options.details) {
+    console.log(chalk.gray("Legend: ● dirty, 🔒 locked, ⚠ prunable"));
+    console.log();
+  }
 
-  if (filteredWorktrees.length === 0) {
+  // Stream worktrees and display each one as it's processed
+  for await (const worktree of manager.streamWorktrees()) {
+    foundAny = true;
+
+    // Apply filters
+    if (options.dirty && !worktree.isDirty) {
+      continue;
+    }
+    if (options.locked && !worktree.isLocked) {
+      continue;
+    }
+
+    // Display this worktree immediately
+    printWorktreeItem(worktree, options);
+    matchingCount++;
+
+    // Flush stdout to ensure immediate display
+    process.stdout.write('');
+  }
+
+  if (!foundAny) {
+    console.log(chalk.yellow("No worktrees found."));
+  } else if (matchingCount === 0) {
     console.log(chalk.yellow("No worktrees found matching the criteria."));
-    return;
   }
-
-  printWorktrees(filteredWorktrees, options);
 }
 
-function filterWorktrees(
-  worktrees: Worktree[],
-  options: WorktreeListOptions,
-): Worktree[] {
-  return worktrees.filter((wt) => {
-    if (options.dirty && !wt.isDirty) {
-      return false;
-    }
-    if (options.locked && !wt.isLocked) {
-      return false;
-    }
-    return true;
-  });
-}
-
-function printWorktrees(
-  worktrees: Worktree[],
-  options: WorktreeListOptions,
-): void {
-  const headers = options.details
-    ? ["PATH", "BRANCH", "HEAD", "CREATED", "STATUS"]
-    : ["PATH", "BRANCH", "CREATED", "STATUS"];
-
-  const table = new Table({
-    head: headers.map((h) => chalk.bold(h)),
-    style: { head: [], border: ["gray"] },
-  });
-
-  for (const wt of worktrees) {
-    const status = formatStatus(wt);
-    const createdStr = formatCreatedTime(wt.createdAt);
-    const branch = wt.isMain ? chalk.green(`${wt.branch} (main)`) : wt.branch;
-
-    const row = [wt.path, branch, createdStr, status];
-
-    if (options.details) {
-      const headShort = wt.head.length > 8 ? wt.head.substring(0, 8) : wt.head;
-      row.splice(2, 0, chalk.gray(headShort)); // Insert HEAD between BRANCH and CREATED
-    }
-
-    table.push(row);
+function printWorktreeItem(worktree: Worktree, options: WorktreeListOptions): void {
+  // Format: (branch●) directory [created-time] 
+  // Symbols: ● = dirty, 🔒 = locked, ⚠ = prunable
+  // Colors: green = main branch, yellow = dirty branch, red = locked branch, cyan = regular branch
+  
+  let branchDisplay = worktree.branch;
+  let symbols = "";
+  
+  // Add status symbols
+  if (worktree.isDirty) {
+    symbols += "●";
   }
-
-  console.log(table.toString());
-}
-
-function formatStatus(wt: Worktree): string {
-  const statuses: string[] = [];
-
-  if (wt.isDirty) {
-    statuses.push(chalk.yellow("dirty"));
+  if (worktree.isLocked) {
+    symbols += "🔒";
   }
-  if (wt.isLocked) {
-    statuses.push(chalk.red("locked"));
+  if (worktree.isPrunable) {
+    symbols += "⚠";
   }
-  if (wt.isPrunable) {
-    statuses.push(chalk.blue("prunable"));
+  
+  // Color the branch based on status
+  if (worktree.isMain) {
+    branchDisplay = chalk.green(branchDisplay);
+  } else if (worktree.isDirty) {
+    branchDisplay = chalk.yellow(branchDisplay);
+  } else if (worktree.isLocked) {
+    branchDisplay = chalk.red(branchDisplay);
+  } else {
+    branchDisplay = chalk.cyan(branchDisplay);
   }
-
-  if (statuses.length === 0) {
-    return chalk.green("clean");
+  
+  const createdStr = formatCreatedTime(worktree.createdAt);
+  const timeDisplay = chalk.gray(`[${createdStr}]`);
+  
+  // Format: (branch●) path [time]
+  console.log(`(${branchDisplay}${chalk.red(symbols)}) ${worktree.path} ${timeDisplay}`);
+  
+  // Show additional details if requested
+  if (options.details) {
+    const headShort = worktree.head.length > 8 ? worktree.head.substring(0, 8) : worktree.head;
+    console.log(`  ${chalk.gray('→')} ${chalk.gray(headShort)}`);
   }
-
-  return statuses.join(", ");
 }
