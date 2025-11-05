@@ -222,7 +222,12 @@ export class WorktreeManager {
           console.log(`Pruning worktree: ${worktree.path}`);
           
           if (!options.dryRun) {
-            await this.git.raw(["worktree", "remove", worktree.path]);
+            const removeArgs = ["worktree", "remove"];
+            if (options.force) {
+              removeArgs.push("--force");
+            }
+            removeArgs.push(worktree.path);
+            await this.git.raw(removeArgs);
             console.log(`✓ Removed worktree: ${worktree.path}`);
           } else {
             console.log(`Would remove worktree: ${worktree.path}`);
