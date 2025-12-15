@@ -255,4 +255,44 @@ export class WorktreeManager {
       throw new Error(`Failed to clone repository: ${error}`);
     }
   }
+
+  async addWorktree(
+    worktreePath: string,
+    branchName: string,
+    options: { createBranch?: boolean; track?: string } = {},
+  ): Promise<void> {
+    try {
+      const args = ["worktree", "add"];
+
+      if (options.createBranch) {
+        args.push("-b", branchName);
+        if (options.track) {
+          args.push("--track", options.track);
+        }
+        args.push(worktreePath);
+        if (options.track) {
+          args.push(options.track);
+        }
+      } else {
+        args.push(worktreePath, branchName);
+      }
+
+      await this.git.raw(args);
+    } catch (error) {
+      throw new Error(`Failed to add worktree: ${error}`);
+    }
+  }
+
+  async removeWorktree(worktreePath: string, force: boolean = false): Promise<void> {
+    try {
+      const args = ["worktree", "remove"];
+      if (force) {
+        args.push("--force");
+      }
+      args.push(worktreePath);
+      await this.git.raw(args);
+    } catch (error) {
+      throw new Error(`Failed to remove worktree: ${error}`);
+    }
+  }
 }

@@ -2,9 +2,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createAddCommand } from './commands/add';
 import { createInitCommand } from './commands/init';
 import { createListCommand } from './commands/list';
 import { createPruneCommand } from './commands/prune';
+import { createRemoveCommand } from './commands/remove';
 
 const program = new Command();
 
@@ -14,9 +16,11 @@ program
   .version(require('../package.json').version);
 
 // Add all commands
+program.addCommand(createAddCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createListCommand());
 program.addCommand(createPruneCommand());
+program.addCommand(createRemoveCommand());
 
 // Handle unknown commands
 program.on('command:*', () => {
