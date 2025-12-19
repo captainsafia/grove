@@ -78,3 +78,11 @@ export function formatCreatedTime(date: Date): string {
     return date.toISOString().split("T")[0]; // YYYY-MM-DD format
   }
 }
+
+export function formatPathWithTilde(filePath: string): string {
+  const homeDir = process.env.HOME || process.env.USERPROFILE;
+  if (homeDir && filePath.startsWith(homeDir)) {
+    return filePath.replace(homeDir, '~');
+  }
+  return filePath;
+}
