@@ -9,6 +9,8 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 ## Features
 
 - Create new Git repo setup with a bare clone to support worktrees
+- Add new worktrees for branches (creates new branches if they don't exist)
+- Remove worktrees with safety checks
 - List worktrees with creation dates and dirty status
 - Prune worktrees associated with branches merged to main
 - Prune worktrees older than a specified duration (30d, 6M, 1y, etc.)
@@ -27,13 +29,6 @@ grove <command>
 ```bash
 npm install -g @captainsafia/grove --registry=https://npm.pkg.github.com
 grove <command>
-```
-
-### Install locally in a project
-
-```bash
-npm install @captainsafia/grove
-npx grove <command>
 ```
 
 ## Usage
@@ -57,8 +52,42 @@ After initialization, you can create worktrees:
 
 ```bash
 cd repo
-git worktree add main main
-git worktree add feature/new-feature origin/feature/new-feature
+grove add main
+grove add feature/new-feature
+```
+
+### Add a new worktree
+
+Create a new worktree for a branch:
+
+```bash
+grove add feature/new-feature
+```
+
+Track a remote branch:
+
+```bash
+grove add feature/new-feature --track origin/feature/new-feature
+```
+
+### Remove a worktree
+
+Remove a worktree:
+
+```bash
+grove remove feature/new-feature
+```
+
+Force removal even with uncommitted changes:
+
+```bash
+grove remove feature/new-feature --force
+```
+
+Skip confirmation prompt:
+
+```bash
+grove remove feature/new-feature --yes
 ```
 
 ### List all worktrees
@@ -126,6 +155,8 @@ grove prune --older-than 2w --dry-run
 ## Commands
 
 - `grove init <git-url>` - Create a new worktree setup
+- `grove add <name> [options]` - Create a new worktree
+- `grove remove <name> [options]` - Remove a worktree
 - `grove list [options]` - List all worktrees
 - `grove prune [options]` - Remove worktrees for merged branches
 - `grove version` - Show version information
