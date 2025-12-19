@@ -1,7 +1,7 @@
 # grove
 
 <div align="center">
-  <img src="assets/logo.png" alt="Grove Logo" width="200"/>
+  <img src="site/logo.png" alt="Grove Logo" width="200"/>
 </div>
 
 Grove is a CLI tool that encapsulates the patterns that I use for working with Git worktrees locally on my machine. To learn more about this pattern, you can check out [this blog post](https://blog.safia.rocks/2025/09/03/git-worktrees/).

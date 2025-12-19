@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grove - Git Worktree Management</title>
+    <meta name="description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background: #ffffff;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 20px 0;
+            margin-bottom: 60px;
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #1f2937;
+        }
+        
+        .logo img {
+            width: 48px;
+            height: 48px;
+        }
+        
+        .logo h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f5f44;
+        }
+        
+        .header-links {
+            display: flex;
+            gap: 24px;
+        }
+        
+        .header-links a {
+            color: #4b5563;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .header-links a:hover {
+            color: #1f5f44;
+        }
+        
+        .hero {
+            margin-bottom: 80px;
+        }
+        
+        .hero h2 {
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #111827;
+        }
+        
+        .hero p {
+            font-size: 20px;
+            color: #6b7280;
+            margin-bottom: 32px;
+        }
+        
+        .install-cmd {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 16px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+            color: #1f5f44;
+            margin-bottom: 16px;
+            overflow-x: auto;
+        }
+        
+        section {
+            margin-bottom: 80px;
+        }
+        
+        h3 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: #111827;
+        }
+        
+        h4 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: #1f5f44;
+        }
+        
+        p {
+            margin-bottom: 16px;
+            color: #4b5563;
+        }
+        
+        code {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+            color: #1f5f44;
+        }
+        
+        pre {
+            background: #1f2937;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 16px 0 24px 0;
+            overflow-x: auto;
+        }
+        
+        pre code {
+            background: none;
+            border: none;
+            color: #d1d5db;
+            padding: 0;
+        }
+        
+        .command-group {
+            margin-bottom: 32px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 24px 0;
+            font-size: 14px;
+        }
+        
+        th {
+            text-align: left;
+            padding: 12px;
+            background: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+            font-weight: 600;
+            color: #1f5f44;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        td:first-child {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 13px;
+            color: #1f5f44;
+        }
+        
+        footer {
+            border-top: 1px solid #e5e7eb;
+            padding: 40px 0;
+            margin-top: 80px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        footer a {
+            color: #1f5f44;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 640px) {
+            .hero h2 {
+                font-size: 36px;
+            }
+            
+            .hero p {
+                font-size: 18px;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <a href="#" class="logo">
+                    <img src="logo.png" alt="Grove Logo">
+                    <h1>grove</h1>
+                </a>
+                <div class="header-links">
+                    <a href="https://github.com/captainsafia/grove">GitHub</a>
+                    <a href="https://www.npmjs.com/package/@captainsafia/grove">npm</a>
+                </div>
+            </div>
+        </header>
+
+        <section class="hero">
+            <h2>Manage git worktrees with ease</h2>
+            <p>Create, list, and prune worktrees efficiently.</p>
+            <div class="install-cmd">$ npm install -g @captainsafia/grove</div>
+        </section>
+
+        <section>
+            <h3>Installation</h3>
+            <p>Install globally via npm:</p>
+            <pre><code>npm install -g @captainsafia/grove</code></pre>
+            
+            <p>Or install from GitHub Packages:</p>
+            <pre><code>npm install -g @captainsafia/grove --registry=https://npm.pkg.github.com</code></pre>
+        </section>
+
+        <section>
+            <h3>Usage</h3>
+            
+            <div class="command-group">
+                <h4>Initialize a new worktree setup</h4>
+                <p>Create a bare clone optimized for worktrees:</p>
+                <pre><code>grove init https://github.com/user/repo.git</code></pre>
+            </div>
+
+            <div class="command-group">
+                <h4>Add a new worktree</h4>
+                <p>Create a worktree for a branch (creates branch if it doesn't exist):</p>
+                <pre><code>grove add feature-branch</code></pre>
+                <p>With tracking for a remote branch:</p>
+                <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
+            </div>
+
+            <div class="command-group">
+                <h4>List worktrees</h4>
+                <p>Show all worktrees:</p>
+                <pre><code>grove list</code></pre>
+                <p>Show detailed information:</p>
+                <pre><code>grove list --details</code></pre>
+                <p>Show only dirty worktrees:</p>
+                <pre><code>grove list --dirty</code></pre>
+            </div>
+
+            <div class="command-group">
+                <h4>Prune worktrees</h4>
+                <p>Preview what would be removed:</p>
+                <pre><code>grove prune --dry-run</code></pre>
+                <p>Remove worktrees for branches merged to main:</p>
+                <pre><code>grove prune</code></pre>
+                <p>Remove worktrees older than 30 days:</p>
+                <pre><code>grove prune --older-than 30d</code></pre>
+                <p>Use a different base branch:</p>
+                <pre><code>grove prune --base develop</code></pre>
+            </div>
+
+            <div class="command-group">
+                <h4>Remove a worktree</h4>
+                <p>Remove a specific worktree:</p>
+                <pre><code>grove remove /path/to/worktree</code></pre>
+                <p>Force removal even with uncommitted changes:</p>
+                <pre><code>grove remove /path/to/worktree --force</code></pre>
+            </div>
+        </section>
+
+        <section>
+            <h3>Commands</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Command</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>grove init &lt;git-url&gt;</td>
+                        <td>Create a new worktree setup</td>
+                    </tr>
+                    <tr>
+                        <td>grove add &lt;branch&gt;</td>
+                        <td>Create a new worktree for a branch</td>
+                    </tr>
+                    <tr>
+                        <td>grove list [options]</td>
+                        <td>List all worktrees</td>
+                    </tr>
+                    <tr>
+                        <td>grove prune [options]</td>
+                        <td>Remove worktrees for merged branches</td>
+                    </tr>
+                    <tr>
+                        <td>grove remove &lt;path&gt;</td>
+                        <td>Remove a specific worktree</td>
+                    </tr>
+                    <tr>
+                        <td>grove version</td>
+                        <td>Show version information</td>
+                    </tr>
+                    <tr>
+                        <td>grove help [command]</td>
+                        <td>Show help information</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <footer>
+            <p>
+                Created by <a href="https://safia.rocks">@captainsafia</a> · 
+                <a href="https://github.com/captainsafia/grove">GitHub</a> · 
+                <a href="https://www.npmjs.com/package/@captainsafia/grove">npm</a> · 
+                Licensed under MIT
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
