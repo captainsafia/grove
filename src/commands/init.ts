@@ -56,13 +56,9 @@ async function runInit(gitUrl: string): Promise<void> {
     console.log(chalk.gray("  Bare repository:"), bareRepoDir);
     console.log();
     console.log(chalk.yellow("Next steps:"));
-    console.log(chalk.gray(`  cd ${bareRepoDir}`));
-    console.log(chalk.gray("  git worktree add ../main"));
-    console.log(
-      chalk.gray(
-        "  git worktree add ../feature/new-feature origin/feature/new-feature",
-      ),
-    );
+    console.log(chalk.gray(`  cd ${repoName}`));
+    console.log(chalk.gray("  grove add main"));
+    console.log(chalk.gray("  grove add feature/new-feature"));
   } catch (error) {
     // Clean up on failure
     if (fs.existsSync(repoName)) {
