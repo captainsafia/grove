@@ -4,7 +4,6 @@ import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
 
 interface AddCommandOptions {
-  branch?: boolean;
   track?: string;
 }
 
@@ -13,8 +12,7 @@ export function createAddCommand(): Command {
 
   command
     .description("Create a new worktree")
-    .argument("<name>", "Branch name or new branch name (with -b)")
-    .option("-b, --branch", "Create a new branch", false)
+    .argument("<name>", "Branch name (creates new branch if it doesn't exist)")
     .option(
       "-t, --track <remote-branch>",
       "Set up tracking for the specified remote branch",
@@ -44,8 +42,18 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
 
   console.log(chalk.blue(`Creating worktree for '${name}'...`));
 
-  if (options.branch) {
-    // Create a new branch and worktree
+  // Check if branch exists, otherwise create it
+  const branchExists = await manager.branchExists(name);
+  
+  if (branchExists) {
+    // Create worktree from existing branch
+    await manager.addWorktree(worktreePath, name, {
+      createBranch: false,
+      track: options.track,
+    });
+    console.log(chalk.green("✓ Created worktree:"), chalk.bold(name));
+  } else {
+    // Branch doesn't exist, create new branch and worktree
     await manager.addWorktree(worktreePath, name, {
       createBranch: true,
       track: options.track,
@@ -54,13 +62,6 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
       chalk.green("✓ Created new branch and worktree:"),
       chalk.bold(name),
     );
-  } else {
-    // Create worktree from existing branch
-    await manager.addWorktree(worktreePath, name, {
-      createBranch: false,
-      track: options.track,
-    });
-    console.log(chalk.green("✓ Created worktree:"), chalk.bold(name));
   }
 
   console.log(chalk.gray("  Path:"), worktreePath);

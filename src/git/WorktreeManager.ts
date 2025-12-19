@@ -174,6 +174,15 @@ export class WorktreeManager {
     return worktree;
   }
 
+  async branchExists(branch: string): Promise<boolean> {
+    try {
+      await this.git.raw(["rev-parse", "--verify", `refs/heads/${branch}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async isBranchMerged(branch: string, baseBranch: string): Promise<boolean> {
     try {
       const result = await this.git.raw(["branch", "--merged", baseBranch]);
