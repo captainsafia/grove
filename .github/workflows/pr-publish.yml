@@ -49,9 +49,6 @@ jobs:
       - name: Build for macOS ARM64
         run: bun build --compile --minify --sourcemap --target=bun-darwin-arm64 ./src/index.ts --outfile grove-darwin-arm64
 
-      - name: Build for Windows x64
-        run: bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe
-
       - name: Upload PR executables
         uses: actions/upload-artifact@v4
         with:
@@ -61,7 +58,6 @@ jobs:
             grove-linux-arm64
             grove-darwin-x64
             grove-darwin-arm64
-            grove-windows-x64.exe
           retention-days: 30
 
       - name: Comment on PR
@@ -91,8 +87,7 @@ jobs:
             - \`grove-linux-x64\`
             - \`grove-linux-arm64\`
             - \`grove-darwin-x64\`
-            - \`grove-darwin-arm64\`
-            - \`grove-windows-x64.exe\``;
+            - \`grove-darwin-arm64\``;
 
             // Check if a comment already exists
             const { data: comments } = await github.rest.issues.listComments({
