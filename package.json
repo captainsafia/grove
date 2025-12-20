@@ -6,7 +6,8 @@
     "git",
     "worktree",
     "cli",
-    "typescript"
+    "typescript",
+    "bun"
   ],
   "homepage": "https://github.com/captainsafia/grove",
   "bugs": {
@@ -18,6 +19,7 @@
   },
   "license": "MIT",
   "author": "Safia Abdalla",
+  "type": "module",
   "main": "dist/index.js",
   "bin": {
     "grove": "dist/index.js"
@@ -28,14 +30,19 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "clean": "rm -rf dist",
-    "prepare": "npm run build",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "typecheck": "tsc --noEmit"
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "build:compile": "bun build --compile --minify --sourcemap ./src/index.ts --outfile grove",
+    "build:linux-x64": "bun build --compile --minify --sourcemap --target=bun-linux-x64 ./src/index.ts --outfile grove-linux-x64",
+    "build:linux-arm64": "bun build --compile --minify --sourcemap --target=bun-linux-arm64 ./src/index.ts --outfile grove-linux-arm64",
+    "build:darwin-x64": "bun build --compile --minify --sourcemap --target=bun-darwin-x64 ./src/index.ts --outfile grove-darwin-x64",
+    "build:darwin-arm64": "bun build --compile --minify --sourcemap --target=bun-darwin-arm64 ./src/index.ts --outfile grove-darwin-arm64",
+    "build:windows-x64": "bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe",
+    "dev": "bun run src/index.ts",
+    "clean": "rm -rf dist grove grove-*",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "typecheck": "bun x tsc --noEmit"
   },
   "dependencies": {
     "chalk": "^4.1.2",
@@ -45,19 +52,11 @@
     "simple-git": "^3.20.0"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/inquirer": "^9.0.0",
-    "@types/jest": "^30.0.0",
-    "@types/moment": "^2.11.29",
     "@types/node": "^20.0.0",
-    "jest": "^30.2.0",
-    "ts-jest": "^29.4.6",
-    "ts-node": "^10.0.0",
     "typescript": "^5.0.0"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "preferGlobal": true,
   "publishConfig": {
     "access": "public"
   }
