@@ -304,4 +304,32 @@ export class WorktreeManager {
       throw new Error(`Failed to remove worktree: ${error}`);
     }
   }
+
+  async getDefaultBranch(): Promise<string> {
+    try {
+      // Try to get the default branch from the remote HEAD
+      const result = await this.git.raw(["symbolic-ref", "refs/remotes/origin/HEAD"]);
+      const branch = result.trim().replace("refs/remotes/origin/", "");
+      return branch;
+    } catch {
+      // Fallback: check if main or master exists
+      if (await this.branchExists("main")) {
+        return "main";
+      }
+      if (await this.branchExists("master")) {
+        return "master";
+      }
+      throw new Error("Could not determine default branch. Please specify with --branch.");
+    }
+  }
+
+  async syncBranch(branch: string): Promise<void> {
+    try {
+      // Fetch the branch from origin and update the local reference
+      // Using git fetch origin <branch>:<branch> to update the local branch
+      await this.git.raw(["fetch", "origin", `${branch}:${branch}`]);
+    } catch (error) {
+      throw new Error(`Failed to sync branch '${branch}': ${error}`);
+    }
+  }
 }

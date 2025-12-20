@@ -121,4 +121,102 @@ describe("WorktreeManager", () => {
       ).rejects.toThrow("Failed to add worktree");
     });
   });
+
+  describe("getDefaultBranch", () => {
+    test("should return the default branch from remote HEAD", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "symbolic-ref") {
+          return Promise.resolve("refs/remotes/origin/main\n");
+        }
+        return Promise.resolve("");
+      });
+
+      const result = await manager.getDefaultBranch();
+
+      expect(result).toBe("main");
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        "symbolic-ref",
+        "refs/remotes/origin/HEAD",
+      ]);
+    });
+
+    test("should fallback to main if symbolic-ref fails", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "symbolic-ref") {
+          return Promise.reject(new Error("fatal: not a symbolic ref"));
+        }
+        if (args[0] === "rev-parse" && args[2] === "refs/heads/main") {
+          return Promise.resolve("abc123");
+        }
+        return Promise.reject(new Error("branch not found"));
+      });
+
+      const result = await manager.getDefaultBranch();
+
+      expect(result).toBe("main");
+    });
+
+    test("should fallback to master if main does not exist", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "symbolic-ref") {
+          return Promise.reject(new Error("fatal: not a symbolic ref"));
+        }
+        if (args[0] === "rev-parse" && args[2] === "refs/heads/main") {
+          return Promise.reject(new Error("branch not found"));
+        }
+        if (args[0] === "rev-parse" && args[2] === "refs/heads/master") {
+          return Promise.resolve("abc123");
+        }
+        return Promise.reject(new Error("branch not found"));
+      });
+
+      const result = await manager.getDefaultBranch();
+
+      expect(result).toBe("master");
+    });
+
+    test("should throw error if no default branch can be determined", async () => {
+      mockGit.raw.mockImplementation(() => Promise.reject(new Error("not found")));
+
+      await expect(manager.getDefaultBranch()).rejects.toThrow(
+        "Could not determine default branch"
+      );
+    });
+  });
+
+  describe("syncBranch", () => {
+    test("should fetch and update the specified branch from origin", async () => {
+      mockGit.raw.mockImplementation(() => Promise.resolve(""));
+
+      await manager.syncBranch("main");
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        "fetch",
+        "origin",
+        "main:main",
+      ]);
+    });
+
+    test("should sync feature branches", async () => {
+      mockGit.raw.mockImplementation(() => Promise.resolve(""));
+
+      await manager.syncBranch("develop");
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        "fetch",
+        "origin",
+        "develop:develop",
+      ]);
+    });
+
+    test("should throw an error if sync fails", async () => {
+      mockGit.raw.mockImplementation(() =>
+        Promise.reject(new Error("fatal: couldn't find remote ref"))
+      );
+
+      await expect(manager.syncBranch("non-existent-branch")).rejects.toThrow(
+        "Failed to sync branch 'non-existent-branch'"
+      );
+    });
+  });
 });

@@ -264,6 +264,14 @@
             </div>
 
             <div class="command-group">
+                <h4>Sync with origin</h4>
+                <p>Update the bare clone with the latest changes from origin:</p>
+                <pre><code>grove sync</code></pre>
+                <p>Sync a specific branch:</p>
+                <pre><code>grove sync --branch develop</code></pre>
+            </div>
+
+            <div class="command-group">
                 <h4>Prune worktrees</h4>
                 <p>Preview what would be removed:</p>
                 <pre><code>grove prune --dry-run</code></pre>
@@ -305,6 +313,10 @@
                     <tr>
                         <td>grove list [options]</td>
                         <td>List all worktrees</td>
+                    </tr>
+                    <tr>
+                        <td>grove sync [options]</td>
+                        <td>Sync the bare clone with origin</td>
                     </tr>
                     <tr>
                         <td>grove prune [options]</td>
