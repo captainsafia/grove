@@ -12,6 +12,7 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 - Add new worktrees for branches (creates new branches if they don't exist)
 - Remove worktrees with safety checks
 - List worktrees with creation dates and dirty status
+- Sync the bare clone with the latest changes from origin
 - Prune worktrees associated with branches merged to main
 - Prune worktrees older than a specified duration (30d, 6M, 1y, etc.)
 
@@ -108,6 +109,22 @@ Show only dirty worktrees:
 grove list --dirty
 ```
 
+### Sync with origin
+
+Update the bare clone with the latest changes from origin:
+
+```bash
+grove sync
+```
+
+This fetches the default branch (main or master) from origin and updates the local reference.
+
+Sync a specific branch:
+
+```bash
+grove sync --branch develop
+```
+
 ### Prune merged worktrees
 
 Preview what would be removed:
@@ -158,6 +175,7 @@ grove prune --older-than 2w --dry-run
 - `grove add <name> [options]` - Create a new worktree
 - `grove remove <name> [options]` - Remove a worktree
 - `grove list [options]` - List all worktrees
+- `grove sync [options]` - Sync the bare clone with origin
 - `grove prune [options]` - Remove worktrees for merged branches
 - `grove version` - Show version information
 - `grove help [command]` - Show help

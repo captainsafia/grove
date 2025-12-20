@@ -7,6 +7,7 @@ import { createInitCommand } from './commands/init';
 import { createListCommand } from './commands/list';
 import { createPruneCommand } from './commands/prune';
 import { createRemoveCommand } from './commands/remove';
+import { createSyncCommand } from './commands/sync';
 
 // Read version from package.json at build time
 const packageJson = await import('../package.json');
@@ -24,6 +25,7 @@ program.addCommand(createInitCommand());
 program.addCommand(createListCommand());
 program.addCommand(createPruneCommand());
 program.addCommand(createRemoveCommand());
+program.addCommand(createSyncCommand());
 
 // Handle unknown commands
 program.on('command:*', () => {
