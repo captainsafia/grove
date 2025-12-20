@@ -8,13 +8,10 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 
 ## Features
 
-- Create new Git repo setup with a bare clone to support worktrees
-- Add new worktrees for branches (creates new branches if they don't exist)
-- Remove worktrees with safety checks
-- List worktrees with creation dates and dirty status
-- Sync the bare clone with the latest changes from origin
-- Prune worktrees associated with branches merged to main
-- Prune worktrees older than a specified duration (30d, 6M, 1y, etc.)
+- Initialize repos with a bare clone optimized for worktrees
+- Create, list, and remove worktrees
+- Sync with origin and prune stale worktrees
+- Self-update to the latest version or PR build
 
 ## Installation
 
@@ -169,6 +166,30 @@ grove prune --older-than 1y
 grove prune --older-than 2w --dry-run
 ```
 
+### Self-update
+
+Update grove to the latest version:
+
+```bash
+grove self-update
+```
+
+Update to a specific version:
+
+```bash
+grove self-update v1.0.0
+# or
+grove self-update 1.0.0
+```
+
+Update to a specific PR build (requires GitHub CLI):
+
+```bash
+grove self-update --pr 42
+```
+
+**Note:** The self-update command uses the same installation script as the initial installation. If you installed grove using the quick install method, this command will update the binary in `~/.grove/bin`. If you installed grove using a different method (e.g., manually downloading the binary), you may need to update it manually.
+
 ## Commands
 
 - `grove init <git-url>` - Create a new worktree setup
@@ -177,6 +198,7 @@ grove prune --older-than 2w --dry-run
 - `grove list [options]` - List all worktrees
 - `grove sync [options]` - Sync the bare clone with origin
 - `grove prune [options]` - Remove worktrees for merged branches
+- `grove self-update [version] [options]` - Update grove to a specific version or PR
 - `grove version` - Show version information
 - `grove help [command]` - Show help
 

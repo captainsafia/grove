@@ -7,6 +7,7 @@ import { createInitCommand } from './commands/init';
 import { createListCommand } from './commands/list';
 import { createPruneCommand } from './commands/prune';
 import { createRemoveCommand } from './commands/remove';
+import { createSelfUpdateCommand } from './commands/self-update';
 import { createSyncCommand } from './commands/sync';
 
 // Read version from package.json at build time
@@ -25,6 +26,7 @@ program.addCommand(createInitCommand());
 program.addCommand(createListCommand());
 program.addCommand(createPruneCommand());
 program.addCommand(createRemoveCommand());
+program.addCommand(createSelfUpdateCommand());
 program.addCommand(createSyncCommand());
 
 // Handle unknown commands
