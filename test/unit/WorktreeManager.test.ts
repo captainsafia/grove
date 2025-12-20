@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, mock, Mock } from "bun:test";
-import { WorktreeManager } from "../src/git/WorktreeManager";
+import { WorktreeManager } from "../../src/git/WorktreeManager";
 import type { SimpleGit } from "simple-git";
 
 // Mock simple-git

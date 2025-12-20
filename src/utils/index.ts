@@ -82,7 +82,10 @@ export function formatCreatedTime(date: Date): string {
 export function formatPathWithTilde(filePath: string): string {
   const homeDir = process.env.HOME || process.env.USERPROFILE;
   if (homeDir && filePath.startsWith(homeDir)) {
-    return filePath.replace(homeDir, '~');
+    // Only replace if the path is exactly homeDir or followed by a path separator
+    if (filePath === homeDir || filePath[homeDir.length] === '/') {
+      return filePath.replace(homeDir, '~');
+    }
   }
   return filePath;
 }
