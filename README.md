@@ -88,6 +88,25 @@ Skip confirmation prompt:
 grove remove feature/new-feature --yes
 ```
 
+### Navigate to a worktree
+
+Open a new shell session in a worktree directory:
+
+```bash
+grove go feature-branch
+```
+
+This spawns a new shell in the worktree directory. Exit the shell (Ctrl+D or `exit`) to return to your previous directory.
+
+You can also navigate by partial branch name for nested branches:
+
+```bash
+# If you have a worktree for feature/my-feature
+grove go my-feature
+```
+
+The `GROVE_WORKTREE` environment variable is set to the branch name while in the worktree shell.
+
 ### List all worktrees
 
 ```bash
@@ -194,6 +213,7 @@ grove self-update --pr 42
 
 - `grove init <git-url>` - Create a new worktree setup
 - `grove add <name> [options]` - Create a new worktree
+- `grove go <name>` - Navigate to a worktree
 - `grove remove <name> [options]` - Remove a worktree
 - `grove list [options]` - List all worktrees
 - `grove sync [options]` - Sync the bare clone with origin

@@ -332,4 +332,31 @@ export class WorktreeManager {
       throw new Error(`Failed to sync branch '${branch}': ${error}`);
     }
   }
+
+  async findWorktreeByName(name: string): Promise<Worktree | undefined> {
+    const worktrees = await this.listWorktrees();
+
+    // First, try exact branch name match
+    let worktree = worktrees.find((wt) => wt.branch === name);
+    if (worktree) {
+      return worktree;
+    }
+
+    // Try matching by directory name (last part of the path)
+    worktree = worktrees.find((wt) => {
+      const dirName = path.basename(wt.path);
+      return dirName === name;
+    });
+    if (worktree) {
+      return worktree;
+    }
+
+    // Try partial branch name match (suffix matching for nested branches like feature/foo)
+    worktree = worktrees.find((wt) => wt.branch.endsWith(`/${name}`));
+    if (worktree) {
+      return worktree;
+    }
+
+    return undefined;
+  }
 }
