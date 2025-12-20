@@ -23,6 +23,8 @@ curl -fsSL https://safia.rocks/grove/install.sh | sh
 
 This will download the appropriate binary for your system and install it to `~/.grove/bin`.
 
+**Note:** Grove currently supports Linux and macOS only. Windows support is not available.
+
 To install a specific version:
 
 ```bash
@@ -239,7 +241,6 @@ bun run build:compile
 # Cross-compile for specific platforms
 bun run build:linux-x64
 bun run build:darwin-arm64
-bun run build:windows-x64
 
 # Type check the code
 bun run typecheck

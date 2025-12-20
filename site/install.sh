@@ -35,7 +35,6 @@ detect_os() {
     case "$(uname -s)" in
         Linux*)     echo "linux" ;;
         Darwin*)    echo "darwin" ;;
-        MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
         *)          echo "unknown" ;;
     esac
 }
@@ -223,11 +222,7 @@ install_from_pr() {
             # Download the artifact using gh CLI
             if gh run download --repo "${REPO}" --name "${ARTIFACT_NAME}" --dir "$TEMP_DIR"; then
                 # Find the binary in the downloaded artifact
-                if [ "$OS" = "windows" ]; then
-                    DOWNLOADED_BINARY="${TEMP_DIR}/grove-${OS}-${ARCH}.exe"
-                else
-                    DOWNLOADED_BINARY="${TEMP_DIR}/grove-${OS}-${ARCH}"
-                fi
+                DOWNLOADED_BINARY="${TEMP_DIR}/grove-${OS}-${ARCH}"
                 
                 if [ -f "$DOWNLOADED_BINARY" ]; then
                     # Create install directory
@@ -236,10 +231,8 @@ install_from_pr() {
                     # Move binary to install location
                     mv "$DOWNLOADED_BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
                     
-                    # Make executable (not needed on Windows)
-                    if [ "$OS" != "windows" ]; then
-                        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
-                    fi
+                    # Make executable
+                    chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
                     
                     echo ""
                     echo "✅ Grove (PR #${PR_NUM}) installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
@@ -314,11 +307,7 @@ main() {
     echo "Detected: ${OS}-${ARCH}"
 
     # Construct binary name
-    if [ "$OS" = "windows" ]; then
-        BINARY_FILE="grove-${OS}-${ARCH}.exe"
-    else
-        BINARY_FILE="grove-${OS}-${ARCH}"
-    fi
+    BINARY_FILE="grove-${OS}-${ARCH}"
 
     # Handle PR installation
     if [ -n "$PR_NUMBER" ]; then
@@ -359,10 +348,8 @@ main() {
         exit 1
     fi
 
-    # Make executable (not needed on Windows)
-    if [ "$OS" != "windows" ]; then
-        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
-    fi
+    # Make executable
+    chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
     echo ""
     echo "✅ Grove ${VERSION} installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"

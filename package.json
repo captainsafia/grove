@@ -36,7 +36,6 @@
     "build:linux-arm64": "bun build --compile --minify --sourcemap --target=bun-linux-arm64 ./src/index.ts --outfile grove-linux-arm64",
     "build:darwin-x64": "bun build --compile --minify --sourcemap --target=bun-darwin-x64 ./src/index.ts --outfile grove-darwin-x64",
     "build:darwin-arm64": "bun build --compile --minify --sourcemap --target=bun-darwin-arm64 ./src/index.ts --outfile grove-darwin-arm64",
-    "build:windows-x64": "bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe",
     "dev": "bun run src/index.ts",
     "clean": "rm -rf dist grove grove-*",
     "test": "bun test test/WorktreeManager.test.ts test/WorktreeManager.edge-cases.test.ts && bun test test/utils.test.ts test/cli.test.ts test/WorktreeManager.integration.test.ts",
