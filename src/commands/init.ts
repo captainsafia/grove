@@ -1,9 +1,9 @@
 import { Command } from "commander";
-import * as fs from "fs";
+import { access, mkdir, rm } from "fs/promises";
 import * as path from "path";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
-import { extractRepoName } from "../utils";
+import { extractRepoName, isValidGitUrl } from "../utils";
 
 export function createInitCommand(): Command {
   const command = new Command("init");
@@ -27,20 +27,43 @@ export function createInitCommand(): Command {
 }
 
 async function runInit(gitUrl: string): Promise<void> {
+  // Validate git URL format
+  if (!isValidGitUrl(gitUrl)) {
+    throw new Error(
+      "Invalid git URL format. Supported formats:\n" +
+      "  - HTTPS: https://github.com/user/repo.git\n" +
+      "  - SSH: git@github.com:user/repo.git\n" +
+      "  - SSH: ssh://git@github.com/user/repo.git"
+    );
+  }
+
   // Extract repository name from URL
   const repoName = extractRepoName(gitUrl);
 
+  // Track if we created the directory (for cleanup)
+  let createdDir = false;
+
   // Create directory with repo name
-  if (!fs.existsSync(repoName)) {
-    fs.mkdirSync(repoName, { recursive: true });
+  try {
+    await access(repoName);
+  } catch {
+    await mkdir(repoName, { recursive: true });
+    createdDir = true;
   }
 
   // Define bare repo directory
   const bareRepoDir = path.join(repoName, `${repoName}.git`);
 
   // Check if directory already exists
-  if (fs.existsSync(bareRepoDir)) {
+  try {
+    await access(bareRepoDir);
     throw new Error(`Directory ${bareRepoDir} already exists`);
+  } catch (error) {
+    // If error is about directory already existing, rethrow
+    if (error instanceof Error && error.message.includes('already exists')) {
+      throw error;
+    }
+    // Otherwise, directory doesn't exist, which is what we want
   }
 
   try {
@@ -60,9 +83,13 @@ async function runInit(gitUrl: string): Promise<void> {
     console.log(chalk.gray("  grove add main"));
     console.log(chalk.gray("  grove add feature/new-feature"));
   } catch (error) {
-    // Clean up on failure
-    if (fs.existsSync(repoName)) {
-      fs.rmSync(repoName, { recursive: true, force: true });
+    // Clean up on failure - only remove if we created the directory
+    if (createdDir) {
+      try {
+        await rm(repoName, { recursive: true, force: true });
+      } catch (cleanupError) {
+        console.warn(chalk.yellow(`Warning: Failed to clean up ${repoName}: ${cleanupError}`));
+      }
     }
     throw error;
   }

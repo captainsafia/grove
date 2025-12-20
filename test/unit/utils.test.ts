@@ -4,6 +4,7 @@ import {
   parseDuration,
   formatCreatedTime,
   formatPathWithTilde,
+  isValidGitUrl,
 } from "../../src/utils/index";
 
 describe("extractRepoName", () => {
@@ -126,13 +127,13 @@ describe("extractRepoName", () => {
   describe("Error cases", () => {
     test("should throw error for empty string", () => {
       expect(() => extractRepoName("")).toThrow(
-        "Could not extract repository name"
+        "Could not extract valid repository name"
       );
     });
 
     test("should throw error for just .git", () => {
       expect(() => extractRepoName(".git")).toThrow(
-        "Could not extract repository name"
+        "Could not extract valid repository name"
       );
     });
 
@@ -142,8 +143,78 @@ describe("extractRepoName", () => {
 
     test("should throw error for dot path", () => {
       expect(() => extractRepoName(".")).toThrow(
-        "Could not extract repository name"
+        "Could not extract valid repository name"
       );
+    });
+
+    test("should throw error for double-dot path traversal", () => {
+      expect(() => extractRepoName("https://github.com/user/..")).toThrow(
+        "Could not extract valid repository name"
+      );
+    });
+
+    test("should throw error for double-dot in SSH URL", () => {
+      expect(() => extractRepoName("git@github.com:user/..")).toThrow(
+        "Could not extract valid repository name"
+      );
+    });
+  });
+});
+
+describe("isValidGitUrl", () => {
+  describe("Valid URLs", () => {
+    test("should accept standard HTTPS URL", () => {
+      expect(isValidGitUrl("https://github.com/user/repo.git")).toBe(true);
+    });
+
+    test("should accept HTTPS URL without .git", () => {
+      expect(isValidGitUrl("https://github.com/user/repo")).toBe(true);
+    });
+
+    test("should accept SSH URL with git@", () => {
+      expect(isValidGitUrl("git@github.com:user/repo.git")).toBe(true);
+    });
+
+    test("should accept ssh:// URL", () => {
+      expect(isValidGitUrl("ssh://git@github.com/user/repo.git")).toBe(true);
+    });
+
+    test("should accept HTTP URL", () => {
+      expect(isValidGitUrl("http://github.com/user/repo")).toBe(true);
+    });
+  });
+
+  describe("Invalid URLs", () => {
+    test("should reject empty string", () => {
+      expect(isValidGitUrl("")).toBe(false);
+    });
+
+    test("should reject null", () => {
+      expect(isValidGitUrl(null as any)).toBe(false);
+    });
+
+    test("should reject undefined", () => {
+      expect(isValidGitUrl(undefined as any)).toBe(false);
+    });
+
+    test("should reject local paths", () => {
+      expect(isValidGitUrl("/path/to/repo")).toBe(false);
+    });
+
+    test("should reject relative paths", () => {
+      expect(isValidGitUrl("./repo")).toBe(false);
+    });
+
+    test("should reject file:// URLs", () => {
+      expect(isValidGitUrl("file:///path/to/repo")).toBe(false);
+    });
+
+    test("should reject plain repo names", () => {
+      expect(isValidGitUrl("my-repo")).toBe(false);
+    });
+
+    test("should reject malformed SSH URLs", () => {
+      expect(isValidGitUrl("git@github.com")).toBe(false);
     });
   });
 });
@@ -194,9 +265,12 @@ describe("parseDuration", () => {
   });
 
   describe("Error cases", () => {
-    test("should return 0 for empty string", () => {
-      // parseDuration returns 0 for empty string per implementation
-      expect(parseDuration("")).toBe(0);
+    test("should throw for empty string", () => {
+      expect(() => parseDuration("")).toThrow("Duration cannot be empty");
+    });
+
+    test("should throw for whitespace-only string", () => {
+      expect(() => parseDuration("   ")).toThrow("Duration cannot be empty");
     });
 
     test("should throw for invalid format", () => {

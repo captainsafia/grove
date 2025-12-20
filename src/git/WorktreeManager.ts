@@ -3,14 +3,23 @@ import * as fs from "fs";
 import * as path from "path";
 import { Worktree, PruneOptions } from "../models";
 
+// Constants
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds for standard operations
+const CLONE_TIMEOUT_MS = 300000; // 5 minutes for clone operations
+export const MAIN_BRANCHES = ['main', 'master'] as const;
+export const DETACHED_HEAD = 'detached HEAD';
+
 export class WorktreeManager {
   private git: SimpleGit;
   private repoPath: string;
   private isBare: boolean;
 
-  constructor(repoPath?: string) {
+  constructor(repoPath?: string, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
     this.repoPath = repoPath || process.cwd();
-    this.git = simpleGit(this.repoPath);
+    this.git = simpleGit({
+      baseDir: this.repoPath,
+      timeout: { block: timeoutMs },
+    });
     this.isBare = false;
   }
 
@@ -79,7 +88,7 @@ export class WorktreeManager {
         } else if (line.startsWith("branch ")) {
           currentWorktree.branch = line.substring(7).replace("refs/heads/", "");
         } else if (line === "detached") {
-          currentWorktree.branch = "detached HEAD";
+          currentWorktree.branch = DETACHED_HEAD;
         } else if (line === "locked") {
           currentWorktree.isLocked = true;
         } else if (line === "prunable") {
@@ -119,7 +128,7 @@ export class WorktreeManager {
       } else if (line.startsWith("branch ")) {
         currentWorktree.branch = line.substring(7).replace("refs/heads/", "");
       } else if (line === "detached") {
-        currentWorktree.branch = "detached HEAD";
+        currentWorktree.branch = DETACHED_HEAD;
       } else if (line === "locked") {
         currentWorktree.isLocked = true;
       } else if (line === "prunable") {
@@ -153,8 +162,7 @@ export class WorktreeManager {
       worktree.isDirty = !status.isClean();
 
       // Check if this is the main branch
-      const mainBranches = ["main", "master"];
-      worktree.isMain = mainBranches.includes(worktree.branch);
+      worktree.isMain = (MAIN_BRANCHES as readonly string[]).includes(worktree.branch);
 
       // Try to get creation time from filesystem
       try {
@@ -207,7 +215,7 @@ export class WorktreeManager {
         continue;
       }
 
-      if (worktree.branch === "detached HEAD") {
+      if (worktree.branch === DETACHED_HEAD) {
         continue;
       }
 
@@ -229,7 +237,7 @@ export class WorktreeManager {
 
         if (shouldPrune && (options.force || !worktree.isDirty)) {
           console.log(`Pruning worktree: ${worktree.path}`);
-          
+
           if (!options.dryRun) {
             const removeArgs = ["worktree", "remove"];
             if (options.force) {
@@ -250,12 +258,39 @@ export class WorktreeManager {
     }
   }
 
+  async removeWorktrees(worktrees: Worktree[], force: boolean = false): Promise<{ removed: string[], failed: Array<{ path: string, error: string }> }> {
+    const removed: string[] = [];
+    const failed: Array<{ path: string, error: string }> = [];
+
+    for (const worktree of worktrees) {
+      try {
+        const removeArgs = ["worktree", "remove"];
+        if (force) {
+          removeArgs.push("--force");
+        }
+        removeArgs.push(worktree.path);
+        await this.git.raw(removeArgs);
+        removed.push(worktree.path);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        failed.push({ path: worktree.path, error: errorMessage });
+      }
+    }
+
+    return { removed, failed };
+  }
+
   async cloneBareRepository(gitUrl: string, targetDir: string): Promise<void> {
     try {
-      await this.git.clone(gitUrl, targetDir, ["--bare"]);
+      // Use a longer timeout for clone operations
+      const cloneGit = simpleGit({ timeout: { block: CLONE_TIMEOUT_MS } });
+      await cloneGit.clone(gitUrl, targetDir, ["--bare"]);
 
       // Configure fetch refspec
-      const bareGit = simpleGit(targetDir);
+      const bareGit = simpleGit({
+        baseDir: targetDir,
+        timeout: { block: DEFAULT_TIMEOUT_MS },
+      });
       await bareGit.addConfig(
         "remote.origin.fetch",
         "+refs/heads/*:refs/remotes/origin/*",
