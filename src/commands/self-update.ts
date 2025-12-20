@@ -39,6 +39,16 @@ async function runSelfUpdate(
     throw new Error("Cannot specify both version and --pr option");
   }
 
+  // Validate PR number to prevent command injection
+  if (options?.pr && !/^\d+$/.test(options.pr)) {
+    throw new Error("Invalid PR number: must be a positive integer");
+  }
+
+  // Validate version format to prevent command injection
+  if (version && !/^v?\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
+    throw new Error("Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)");
+  }
+
   // Construct the install command
   const installScriptUrl = "https://safia.rocks/grove/install.sh";
   let installCommand: string;

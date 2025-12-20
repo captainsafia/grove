@@ -1,5 +1,37 @@
 import * as path from "path";
 import moment from "moment";
+import chalk from "chalk";
+
+/**
+ * Unified error formatting helper for consistent CLI error messages
+ */
+export function formatError(message: string, hint?: string): void {
+  console.error(chalk.red('Error:'), message);
+  if (hint) {
+    console.error(chalk.yellow('  Hint:'), hint);
+  }
+}
+
+/**
+ * Format and print a warning message
+ */
+export function formatWarning(message: string): void {
+  console.warn(chalk.yellow('Warning:'), message);
+}
+
+export function isValidGitUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+
+  const patterns = [
+    /^https?:\/\/.+\/.+$/,  // HTTPS URLs
+    /^git@[^:]+:.+$/,       // SSH URLs (git@host:path)
+    /^ssh:\/\/.+\/.+$/,     // SSH URLs (ssh://host/path)
+  ];
+
+  return patterns.some(p => p.test(url));
+}
 
 export function extractRepoName(gitUrl: string): string {
   // Remove .git suffix if present
@@ -13,8 +45,8 @@ export function extractRepoName(gitUrl: string): string {
     }
     const urlPath = parts[parts.length - 1];
     const repoName = path.basename(urlPath);
-    if (!repoName || repoName === ".") {
-      throw new Error(`Could not extract repository name from: ${gitUrl}`);
+    if (!repoName || repoName === "." || repoName === "..") {
+      throw new Error(`Could not extract valid repository name from: ${gitUrl}`);
     }
     return repoName;
   }
@@ -22,23 +54,25 @@ export function extractRepoName(gitUrl: string): string {
   // Handle HTTPS URLs
   if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
     const repoName = path.basename(cleanUrl);
-    if (!repoName || repoName === ".") {
-      throw new Error(`Could not extract repository name from: ${gitUrl}`);
+    if (!repoName || repoName === "." || repoName === "..") {
+      throw new Error(`Could not extract valid repository name from: ${gitUrl}`);
     }
     return repoName;
   }
 
   // Handle local paths or simple names
   const repoName = path.basename(cleanUrl);
-  if (!repoName || repoName === ".") {
-    throw new Error(`Could not extract repository name from: ${gitUrl}`);
+  if (!repoName || repoName === "." || repoName === "..") {
+    throw new Error(`Could not extract valid repository name from: ${gitUrl}`);
   }
 
   return repoName;
 }
 
 export function parseDuration(durationStr: string): number {
-  if (!durationStr) return 0;
+  if (!durationStr || durationStr.trim() === '') {
+    throw new Error('Duration cannot be empty (use ISO 8601 duration format like P30D, P1Y, P2W, PT1H)');
+  }
 
   try {
     const duration = moment.duration(durationStr.toUpperCase());

@@ -2,17 +2,17 @@ import { describe, test, expect, beforeEach, mock, Mock } from "bun:test";
 import { WorktreeManager } from "../../src/git/WorktreeManager";
 import type { SimpleGit } from "simple-git";
 
-// Mock simple-git
-mock.module("simple-git", () => ({
-  simpleGit: () => mockGit,
-}));
-
 let mockGit: {
   raw: Mock<(...args: any[]) => Promise<string>>;
   status: Mock<(...args: any[]) => Promise<any>>;
   clone: Mock<(...args: any[]) => Promise<any>>;
   addConfig: Mock<(...args: any[]) => Promise<any>>;
 };
+
+// Mock simple-git - supports both simpleGit(options) and simpleGit(path) patterns
+mock.module("simple-git", () => ({
+  simpleGit: () => mockGit,
+}));
 
 describe("WorktreeManager", () => {
   let manager: WorktreeManager;

@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { WorktreeManager } from "../git/WorktreeManager";
+import { WorktreeManager, DETACHED_HEAD } from "../git/WorktreeManager";
 import { Worktree, PruneOptions } from "../models";
 import { parseDuration } from "../utils";
 
@@ -93,7 +93,7 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
       continue;
     }
 
-    if (wt.branch === "detached HEAD") {
+    if (wt.branch === DETACHED_HEAD) {
       continue;
     }
 
@@ -209,16 +209,37 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
     }
   }
 
-  const pruneOptions: PruneOptions = {
-    dryRun: false,
-    force: options.force,
-    baseBranch: options.base,
-    olderThan: options.olderThan ? ageThresholdMs : undefined,
-  };
+  // Filter out dirty worktrees if not forcing
+  const worktreesToRemove = options.force
+    ? candidatesForPruning
+    : candidatesForPruning.filter((wt) => !wt.isDirty);
+
+  if (worktreesToRemove.length === 0) {
+    console.log(chalk.yellow("No worktrees to remove (all candidates have uncommitted changes)."));
+    console.log(chalk.yellow("Use --force to remove them anyway."));
+    return;
+  }
 
   console.log(chalk.blue("\nRemoving worktrees..."));
-  await manager.pruneWorktrees(pruneOptions);
-  console.log(chalk.green("\nPrune operation completed."));
+
+  // Use the confirmed list of worktrees directly to avoid re-evaluation
+  const result = await manager.removeWorktrees(worktreesToRemove, options.force);
+
+  for (const path of result.removed) {
+    console.log(chalk.green(`✓ Removed worktree: ${path}`));
+  }
+
+  for (const failure of result.failed) {
+    console.log(chalk.red(`✗ Failed to remove ${failure.path}: ${failure.error}`));
+  }
+
+  if (result.removed.length > 0) {
+    console.log(chalk.green(`\nPrune operation completed. Removed ${result.removed.length} worktree(s).`));
+  }
+
+  if (result.failed.length > 0) {
+    console.log(chalk.yellow(`\nFailed to remove ${result.failed.length} worktree(s).`));
+  }
 }
 
 function getWorktreeStatus(wt: Worktree): string {

@@ -1,17 +1,17 @@
 import { describe, test, expect, beforeEach, mock, Mock } from "bun:test";
 import { WorktreeManager } from "../../src/git/WorktreeManager";
 
-// Mock simple-git for edge case testing
-mock.module("simple-git", () => ({
-  simpleGit: () => mockGit,
-}));
-
 let mockGit: {
   raw: Mock<(...args: any[]) => Promise<string>>;
   status: Mock<(...args: any[]) => Promise<any>>;
   clone: Mock<(...args: any[]) => Promise<any>>;
   addConfig: Mock<(...args: any[]) => Promise<any>>;
 };
+
+// Mock simple-git for edge case testing
+mock.module("simple-git", () => ({
+  simpleGit: () => mockGit,
+}));
 
 describe("WorktreeManager Edge Cases", () => {
   let manager: WorktreeManager;

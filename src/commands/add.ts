@@ -42,26 +42,30 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
 
   console.log(chalk.blue(`Creating worktree for '${name}'...`));
 
-  // Check if branch exists, otherwise create it
-  const branchExists = await manager.branchExists(name);
-  
-  if (branchExists) {
-    // Create worktree from existing branch
+  // Try to create worktree for existing branch first, fall back to creating new branch
+  // This handles the race condition atomically - git will fail if branch doesn't exist
+  try {
     await manager.addWorktree(worktreePath, name, {
       createBranch: false,
       track: options.track,
     });
     console.log(chalk.green("✓ Created worktree:"), chalk.bold(name));
-  } else {
-    // Branch doesn't exist, create new branch and worktree
-    await manager.addWorktree(worktreePath, name, {
-      createBranch: true,
-      track: options.track,
-    });
-    console.log(
-      chalk.green("✓ Created new branch and worktree:"),
-      chalk.bold(name),
-    );
+  } catch (existingBranchError) {
+    // Branch doesn't exist, try creating new branch and worktree
+    try {
+      await manager.addWorktree(worktreePath, name, {
+        createBranch: true,
+        track: options.track,
+      });
+      console.log(
+        chalk.green("✓ Created new branch and worktree:"),
+        chalk.bold(name),
+      );
+    } catch (newBranchError) {
+      // If both fail, provide a helpful error message
+      const errorMessage = newBranchError instanceof Error ? newBranchError.message : String(newBranchError);
+      throw new Error(`Failed to create worktree: ${errorMessage}`);
+    }
   }
 
   console.log(chalk.gray("  Path:"), worktreePath);
@@ -71,13 +75,29 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
 }
 
 function getWorktreePath(branchName: string): string {
+  // Validate branch name doesn't contain path traversal
+  if (branchName.includes('..') || path.isAbsolute(branchName)) {
+    throw new Error('Invalid branch name: contains path traversal characters');
+  }
+
+  // Sanitize special characters that could cause issues on various filesystems
+  const sanitizedName = branchName.replace(/[<>:"|?*]/g, '-');
+
   // Get the current working directory
   const cwd = process.cwd();
   const parentDir = path.dirname(cwd);
 
   // Use the branch name as the directory name
   // Replace slashes with the OS path separator for nested branches
-  const dirName = branchName.replace(/\//g, path.sep);
+  const dirName = sanitizedName.replace(/\//g, path.sep);
 
-  return path.join(parentDir, dirName);
+  const worktreePath = path.join(parentDir, dirName);
+
+  // Ensure the resolved path is within the parent directory
+  const resolvedPath = path.resolve(worktreePath);
+  if (!resolvedPath.startsWith(path.resolve(parentDir) + path.sep) && resolvedPath !== path.resolve(parentDir)) {
+    throw new Error('Invalid branch name: would create worktree outside project');
+  }
+
+  return resolvedPath;
 }
