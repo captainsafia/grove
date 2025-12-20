@@ -39,7 +39,9 @@
     "build:windows-x64": "bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe",
     "dev": "bun run src/index.ts",
     "clean": "rm -rf dist grove grove-*",
-    "test": "bun test",
+    "test": "bun test test/WorktreeManager.test.ts test/WorktreeManager.edge-cases.test.ts && bun test test/utils.test.ts test/cli.test.ts test/WorktreeManager.integration.test.ts",
+    "test:unit": "bun test test/WorktreeManager.test.ts test/WorktreeManager.edge-cases.test.ts test/utils.test.ts test/cli.test.ts",
+    "test:integration": "bun test test/WorktreeManager.integration.test.ts",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "typecheck": "bun x tsc --noEmit"
