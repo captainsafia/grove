@@ -17,18 +17,18 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 
 ## Installation
 
-### Install globally via npm
+### Quick Install (Linux/macOS)
 
 ```bash
-npm install -g @captainsafia/grove
-grove <command>
+curl -fsSL https://safia.rocks/grove/install.sh | sh
 ```
 
-### Install from GitHub Packages
+This will download the appropriate binary for your system and install it to `~/.grove/bin`.
+
+To install a specific version:
 
 ```bash
-npm install -g @captainsafia/grove --registry=https://npm.pkg.github.com
-grove <command>
+curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- v1.0.0
 ```
 
 ## Usage
@@ -167,7 +167,7 @@ grove prune --older-than 2w --dry-run
 ### Prerequisites
 
 - Node.js 20.0 or later
-- npm or yarn
+- Bun (https://bun.sh)
 - Git
 
 ### Setup
@@ -178,21 +178,35 @@ git clone https://github.com/captainsafia/grove.git
 cd grove
 
 # Install dependencies
-npm install
+bun install
 
 # Build the project
-npm run build
+bun run build
+
+# Build single-file executable
+bun run build:compile
 ```
 
 ### Development Commands
 
 ```bash
 # Build the project
-npm run build
+bun run build
+
+# Build single-file executable for current platform
+bun run build:compile
+
+# Cross-compile for specific platforms
+bun run build:linux-x64
+bun run build:darwin-arm64
+bun run build:windows-x64
 
 # Type check the code
-npm run typecheck
+bun run typecheck
+
+# Run tests
+bun test
 
 # Clean build artifacts
-npm run clean
+bun run clean
 ```

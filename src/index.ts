@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { Command } from 'commander';
 import chalk from 'chalk';
@@ -8,12 +8,15 @@ import { createListCommand } from './commands/list';
 import { createPruneCommand } from './commands/prune';
 import { createRemoveCommand } from './commands/remove';
 
+// Read version from package.json at build time
+const packageJson = await import('../package.json');
+
 const program = new Command();
 
 program
   .name('grove')
   .description('Grove is a Git worktree management tool')
-  .version(require('../package.json').version);
+  .version(packageJson.version);
 
 // Add all commands
 program.addCommand(createAddCommand());
