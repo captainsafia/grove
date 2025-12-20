@@ -49,6 +49,91 @@ detect_arch() {
     esac
 }
 
+# Detect current shell
+detect_shell() {
+    # First try to get the shell from SHELL environment variable
+    if [ -n "$SHELL" ]; then
+        case "$SHELL" in
+            */bash)  echo "bash" ;;
+            */zsh)   echo "zsh" ;;
+            */fish)  echo "fish" ;;
+            */ksh)   echo "ksh" ;;
+            */tcsh)  echo "tcsh" ;;
+            */csh)   echo "csh" ;;
+            *)       basename "$SHELL" ;;
+        esac
+    else
+        # Fallback to checking parent process
+        ps -p $$ -o comm= | sed 's/^-//'
+    fi
+}
+
+# Get shell config file path
+get_shell_config() {
+    SHELL_NAME="$1"
+    case "$SHELL_NAME" in
+        bash)
+            if [ -f "$HOME/.bash_profile" ]; then
+                echo "$HOME/.bash_profile"
+            else
+                echo "$HOME/.bashrc"
+            fi
+            ;;
+        zsh)
+            echo "$HOME/.zshrc"
+            ;;
+        fish)
+            echo "$HOME/.config/fish/config.fish"
+            ;;
+        ksh)
+            echo "$HOME/.kshrc"
+            ;;
+        tcsh)
+            echo "$HOME/.tcshrc"
+            ;;
+        csh)
+            echo "$HOME/.cshrc"
+            ;;
+        *)
+            echo "$HOME/.profile"
+            ;;
+    esac
+}
+
+# Get shell-specific PATH export command
+get_path_export_cmd() {
+    SHELL_NAME="$1"
+    INSTALL_PATH="$2"
+    case "$SHELL_NAME" in
+        fish)
+            echo "set -gx PATH \"${INSTALL_PATH}\" \$PATH"
+            ;;
+        csh|tcsh)
+            echo "setenv PATH \"${INSTALL_PATH}:\$PATH\""
+            ;;
+        *)
+            echo "export PATH=\"${INSTALL_PATH}:\$PATH\""
+            ;;
+    esac
+}
+
+# Get shell-specific source command
+get_source_cmd() {
+    SHELL_NAME="$1"
+    CONFIG_FILE="$2"
+    case "$SHELL_NAME" in
+        fish)
+            echo "source ${CONFIG_FILE}"
+            ;;
+        csh|tcsh)
+            echo "source ${CONFIG_FILE}"
+            ;;
+        *)
+            echo "source ${CONFIG_FILE}"
+            ;;
+    esac
+}
+
 # Get the latest release version
 get_latest_version() {
     curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | 
@@ -222,19 +307,25 @@ main() {
     echo "✅ Grove ${VERSION} installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
     echo ""
 
+    # Detect current shell
+    CURRENT_SHELL=$(detect_shell)
+    SHELL_CONFIG=$(get_shell_config "$CURRENT_SHELL")
+    PATH_EXPORT=$(get_path_export_cmd "$CURRENT_SHELL" "$INSTALL_DIR")
+    SOURCE_CMD=$(get_source_cmd "$CURRENT_SHELL" "$SHELL_CONFIG")
+
     # Check if install dir is in PATH
     case ":$PATH:" in
         *":${INSTALL_DIR}:"*)
             echo "Grove is ready to use! Run 'grove --help' to get started."
             ;;
         *)
-            echo "To use grove, add the following to your shell profile (~/.bashrc, ~/.zshrc, etc.):"
+            echo "To use grove, add it to your PATH by running:"
             echo ""
-            echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+            echo "  echo '${PATH_EXPORT}' >> ${SHELL_CONFIG}"
             echo ""
             echo "Then restart your shell or run:"
             echo ""
-            echo "  source ~/.bashrc  # or ~/.zshrc"
+            echo "  ${SOURCE_CMD}"
             echo ""
             echo "After that, run 'grove --help' to get started."
             ;;
