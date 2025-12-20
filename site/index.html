@@ -290,6 +290,16 @@
                 <p>Force removal even with uncommitted changes:</p>
                 <pre><code>grove remove /path/to/worktree --force</code></pre>
             </div>
+
+            <div class="command-group">
+                <h4>Self-update</h4>
+                <p>Update grove to the latest version:</p>
+                <pre><code>grove self-update</code></pre>
+                <p>Update to a specific version:</p>
+                <pre><code>grove self-update v1.0.0</code></pre>
+                <p>Update to a specific PR build (requires GitHub CLI):</p>
+                <pre><code>grove self-update --pr 42</code></pre>
+            </div>
         </section>
 
         <section>
@@ -325,6 +335,10 @@
                     <tr>
                         <td>grove remove &lt;path&gt;</td>
                         <td>Remove a specific worktree</td>
+                    </tr>
+                    <tr>
+                        <td>grove self-update [version]</td>
+                        <td>Update grove to a specific version or PR</td>
                     </tr>
                     <tr>
                         <td>grove version</td>
