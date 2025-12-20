@@ -30,6 +30,20 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Set version in package.json
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # For tagged releases, use the tag version
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            # For main branch, generate prerelease version
+            CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
+            COMMIT_SHA=${GITHUB_SHA::7}
+            VERSION="${CURRENT_VERSION}-preview.${COMMIT_SHA}"
+          fi
+          echo "Setting version to: ${VERSION}"
+          npm version "${VERSION}" --no-git-tag-version --allow-same-version
+
       - name: Build for Linux x64
         run: bun run build:linux-x64
 
@@ -159,7 +173,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Update package.json version
-        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
 
       - name: Build
         run: bun run build

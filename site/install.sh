@@ -49,6 +49,91 @@ detect_arch() {
     esac
 }
 
+# Detect current shell
+detect_shell() {
+    # First try to get the shell from SHELL environment variable
+    if [ -n "$SHELL" ]; then
+        case "$SHELL" in
+            */bash)  echo "bash" ;;
+            */zsh)   echo "zsh" ;;
+            */fish)  echo "fish" ;;
+            */ksh)   echo "ksh" ;;
+            */tcsh)  echo "tcsh" ;;
+            */csh)   echo "csh" ;;
+            *)       basename "$SHELL" ;;
+        esac
+    else
+        # Fallback to checking parent process
+        ps -p $$ -o comm= | sed 's/^-//'
+    fi
+}
+
+# Get shell config file path
+get_shell_config() {
+    SHELL_NAME="$1"
+    case "$SHELL_NAME" in
+        bash)
+            if [ -f "$HOME/.bash_profile" ]; then
+                echo "$HOME/.bash_profile"
+            else
+                echo "$HOME/.bashrc"
+            fi
+            ;;
+        zsh)
+            echo "$HOME/.zshrc"
+            ;;
+        fish)
+            echo "$HOME/.config/fish/config.fish"
+            ;;
+        ksh)
+            echo "$HOME/.kshrc"
+            ;;
+        tcsh)
+            echo "$HOME/.tcshrc"
+            ;;
+        csh)
+            echo "$HOME/.cshrc"
+            ;;
+        *)
+            echo "$HOME/.profile"
+            ;;
+    esac
+}
+
+# Get shell-specific PATH export command
+get_path_export_cmd() {
+    SHELL_NAME="$1"
+    INSTALL_PATH="$2"
+    case "$SHELL_NAME" in
+        fish)
+            echo "set -gx PATH \"${INSTALL_PATH}\" \$PATH"
+            ;;
+        csh|tcsh)
+            echo "setenv PATH \"${INSTALL_PATH}:\$PATH\""
+            ;;
+        *)
+            echo "export PATH=\"${INSTALL_PATH}:\$PATH\""
+            ;;
+    esac
+}
+
+# Get shell-specific source command
+get_source_cmd() {
+    SHELL_NAME="$1"
+    CONFIG_FILE="$2"
+    case "$SHELL_NAME" in
+        fish)
+            echo "source ${CONFIG_FILE}"
+            ;;
+        csh|tcsh)
+            echo "source ${CONFIG_FILE}"
+            ;;
+        *)
+            echo "source ${CONFIG_FILE}"
+            ;;
+    esac
+}
+
 # Get the latest release version
 get_latest_version() {
     curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | 
@@ -124,27 +209,88 @@ install_from_pr() {
     
     echo "Found artifact: ${ARTIFACT_NAME} (ID: ${ARTIFACT_ID})"
     echo ""
-    echo "⚠️  Note: GitHub requires authentication to download workflow artifacts."
-    echo ""
-    echo "To install from PR #${PR_NUM}, please:"
-    echo ""
-    echo "1. Go to: https://github.com/${REPO}/actions"
-    echo "2. Find the latest 'PR Build' run for PR #${PR_NUM}"
-    echo "3. Download the artifact: ${ARTIFACT_NAME}"
-    echo "4. Extract and run:"
-    echo ""
-    if [ "$OS" = "windows" ]; then
-        echo "   unzip ${ARTIFACT_NAME}.zip"
-        echo "   .\\grove-${OS}-${ARCH}.exe --help"
-    else
-        echo "   unzip ${ARTIFACT_NAME}.zip"
-        echo "   chmod +x grove-${OS}-${ARCH}"
-        echo "   ./grove-${OS}-${ARCH} --help"
+
+    # Check if gh CLI is available and authenticated
+    if command -v gh >/dev/null 2>&1; then
+        # Check if gh is authenticated
+        if gh auth status >/dev/null 2>&1; then
+            echo "Using GitHub CLI to download artifact..."
+            
+            # Create temp directory for download
+            TEMP_DIR=$(mktemp -d)
+            trap "rm -rf '$TEMP_DIR'" EXIT
+            
+            # Download the artifact using gh CLI
+            if gh run download --repo "${REPO}" --name "${ARTIFACT_NAME}" --dir "$TEMP_DIR"; then
+                # Find the binary in the downloaded artifact
+                if [ "$OS" = "windows" ]; then
+                    DOWNLOADED_BINARY="${TEMP_DIR}/grove-${OS}-${ARCH}.exe"
+                else
+                    DOWNLOADED_BINARY="${TEMP_DIR}/grove-${OS}-${ARCH}"
+                fi
+                
+                if [ -f "$DOWNLOADED_BINARY" ]; then
+                    # Create install directory
+                    mkdir -p "$INSTALL_DIR"
+                    
+                    # Move binary to install location
+                    mv "$DOWNLOADED_BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
+                    
+                    # Make executable (not needed on Windows)
+                    if [ "$OS" != "windows" ]; then
+                        chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+                    fi
+                    
+                    echo ""
+                    echo "✅ Grove (PR #${PR_NUM}) installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
+                    echo ""
+                    
+                    # Detect current shell and show PATH instructions
+                    CURRENT_SHELL=$(detect_shell)
+                    SHELL_CONFIG=$(get_shell_config "$CURRENT_SHELL")
+                    PATH_EXPORT=$(get_path_export_cmd "$CURRENT_SHELL" "$INSTALL_DIR")
+                    SOURCE_CMD=$(get_source_cmd "$CURRENT_SHELL" "$SHELL_CONFIG")
+
+                    # Check if install dir is in PATH
+                    case ":$PATH:" in
+                        *":${INSTALL_DIR}:"*)
+                            echo "Grove is ready to use! Run 'grove --help' to get started."
+                            ;;
+                        *)
+                            echo "To use grove, add it to your PATH by running:"
+                            echo ""
+                            echo "  echo '${PATH_EXPORT}' >> ${SHELL_CONFIG}"
+                            echo ""
+                            echo "Then restart your shell or run:"
+                            echo ""
+                            echo "  ${SOURCE_CMD}"
+                            echo ""
+                            echo "After that, run 'grove --help' to get started."
+                            ;;
+                    esac
+                    exit 0
+                else
+                    echo "Warning: Could not find binary for ${OS}-${ARCH} in artifact"
+                    echo "Available files:"
+                    ls -la "$TEMP_DIR"
+                fi
+            else
+                echo "Warning: Failed to download artifact with gh CLI, falling back to manual instructions..."
+                echo ""
+            fi
+        fi
     fi
+
+    # Fallback: Show manual download instructions
+    echo "⚠️  Installing from PR artifacts requires the GitHub CLI (gh)."
     echo ""
-    echo "Or move to your install directory:"
-    echo "   mv grove-${OS}-${ARCH} ${INSTALL_DIR}/${BINARY_NAME}"
-    exit 0
+    echo "To install grove from PR #${PR_NUM}:"
+    echo ""
+    echo "1. Install gh: https://cli.github.com/"
+    echo "2. Authenticate: gh auth login"
+    echo "3. Re-run this installer:"
+    echo "   curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- --pr ${PR_NUM}"
+    exit 1
 }
 
 # Main installation
@@ -222,19 +368,25 @@ main() {
     echo "✅ Grove ${VERSION} installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
     echo ""
 
+    # Detect current shell
+    CURRENT_SHELL=$(detect_shell)
+    SHELL_CONFIG=$(get_shell_config "$CURRENT_SHELL")
+    PATH_EXPORT=$(get_path_export_cmd "$CURRENT_SHELL" "$INSTALL_DIR")
+    SOURCE_CMD=$(get_source_cmd "$CURRENT_SHELL" "$SHELL_CONFIG")
+
     # Check if install dir is in PATH
     case ":$PATH:" in
         *":${INSTALL_DIR}:"*)
             echo "Grove is ready to use! Run 'grove --help' to get started."
             ;;
         *)
-            echo "To use grove, add the following to your shell profile (~/.bashrc, ~/.zshrc, etc.):"
+            echo "To use grove, add it to your PATH by running:"
             echo ""
-            echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+            echo "  echo '${PATH_EXPORT}' >> ${SHELL_CONFIG}"
             echo ""
             echo "Then restart your shell or run:"
             echo ""
-            echo "  source ~/.bashrc  # or ~/.zshrc"
+            echo "  ${SOURCE_CMD}"
             echo ""
             echo "After that, run 'grove --help' to get started."
             ;;

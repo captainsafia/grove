@@ -29,10 +29,13 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           COMMIT_SHA=${GITHUB_SHA::7}
-          PR_VERSION="pr.${PR_NUMBER}.${COMMIT_SHA}"
+          PR_VERSION="0.0.0-pr.${PR_NUMBER}.${COMMIT_SHA}"
           echo "VERSION=$PR_VERSION" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "Generated PR version: ${PR_VERSION}"
+
+      - name: Update package.json version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
 
       - name: Build for Linux x64
         run: bun build --compile --minify --sourcemap --target=bun-linux-x64 ./src/index.ts --outfile grove-linux-x64
