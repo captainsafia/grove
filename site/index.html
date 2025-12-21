@@ -3,8 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grove - Git Worktree Management</title>
+    <title>grove - manage git worktrees with ease</title>
     <meta name="description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
+
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://safia.rocks/grove/">
+    <meta property="og:title" content="grove - manage git worktrees with ease">
+    <meta property="og:description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
+    <meta property="og:image" content="https://safia.rocks/grove/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="grove - manage git worktrees with ease">
+    <meta name="twitter:description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
+    <meta name="twitter:image" content="https://safia.rocks/grove/og-image.png">
+
     <style>
         * {
             margin: 0;
@@ -98,6 +114,13 @@
             color: #1f5f44;
             margin-bottom: 16px;
             overflow-x: auto;
+            text-align: center;
+        }
+
+        .install-cmd code {
+            background: none;
+            border: none;
+            padding: 0;
         }
         
         section {
@@ -198,19 +221,193 @@
             text-decoration: underline;
         }
         
+        /* Interactive Terminal Styles */
+        .terminal {
+            background: #1a1a2e;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            margin: 32px 0;
+        }
+
+        .terminal-header {
+            background: #16213e;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-btn.red { background: #ff5f56; }
+        .terminal-btn.yellow { background: #ffbd2e; }
+        .terminal-btn.green { background: #27ca40; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            color: #6b7280;
+            font-size: 13px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+
+        .terminal-body {
+            padding: 20px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            height: 280px;
+            overflow-y: auto;
+        }
+
+        .terminal-line {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .terminal-line.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .terminal-prompt {
+            color: #27ca40;
+            margin-right: 8px;
+            user-select: none;
+        }
+
+        .terminal-command {
+            color: #e2e8f0;
+        }
+
+        .terminal-output {
+            color: #9ca3af;
+            padding-left: 20px;
+            display: block;
+        }
+
+        .terminal-output.success {
+            color: #27ca40;
+        }
+
+        .terminal-output.info {
+            color: #60a5fa;
+        }
+
+        .terminal-output.highlight {
+            color: #fbbf24;
+        }
+
+        .typing-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: #27ca40;
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Hero improvements */
+        .hero {
+            margin-bottom: 80px;
+        }
+
+        .hero-text {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
         @media (max-width: 640px) {
             .hero h2 {
-                font-size: 36px;
+                font-size: 28px;
             }
-            
+
             .hero p {
-                font-size: 18px;
+                font-size: 16px;
             }
-            
+
             .header-content {
                 flex-direction: column;
                 gap: 16px;
                 align-items: flex-start;
+            }
+
+            .terminal-body {
+                padding: 16px;
+                font-size: 12px;
+                min-height: 240px;
+            }
+
+            h3 {
+                font-size: 24px;
+            }
+
+            h4 {
+                font-size: 18px;
+            }
+
+            pre {
+                padding: 12px;
+                font-size: 12px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+
+            td:first-child {
+                font-size: 11px;
+            }
+
+            .command-group {
+                margin-bottom: 24px;
+            }
+
+            section {
+                margin-bottom: 48px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 0 16px;
+            }
+
+            .hero h2 {
+                font-size: 24px;
+            }
+
+            .terminal-body {
+                font-size: 11px;
+                padding: 12px;
+                min-height: 220px;
+            }
+
+            .header-links {
+                gap: 16px;
+            }
+
+            header {
+                margin-bottom: 32px;
             }
         }
     </style>
@@ -231,9 +428,26 @@
         </header>
 
         <section class="hero">
-            <h2>Manage git worktrees with ease</h2>
-            <p>Create, list, and prune worktrees efficiently.</p>
-            <div class="install-cmd">$ curl -fsSL https://safia.rocks/grove/install.sh | sh</div>
+            <div class="hero-text">
+                <h2>Manage git worktrees with ease</h2>
+                <p>Create, list, and prune worktrees efficiently.</p>
+            </div>
+
+            <div class="install-cmd">
+                <code>curl -fsSL https://safia.rocks/grove/install.sh | sh</code>
+            </div>
+
+            <div class="terminal">
+                <div class="terminal-header">
+                    <div class="terminal-btn red"></div>
+                    <div class="terminal-btn yellow"></div>
+                    <div class="terminal-btn green"></div>
+                </div>
+                <div class="terminal-body" id="terminal-content">
+                    <!-- Content injected by JavaScript -->
+                </div>
+            </div>
+
         </section>
 
         <section>
@@ -376,5 +590,84 @@ grove prune --older-than P30D</code></pre>
             </p>
         </footer>
     </div>
+
+    <script>
+        const commands = [
+            { type: 'command', text: 'grove init https://github.com/captainsafia/grove.git' },
+            { type: 'output', text: '✓ Initialized worktree setup: grove', class: 'success' },
+            { type: 'output', text: '  Bare repository: grove/grove.git', class: 'info' },
+            { type: 'command', text: 'cd grove/grove.git' },
+            { type: 'command', text: 'grove add main' },
+            { type: 'output', text: '✓ Created worktree: main', class: 'success' },
+            { type: 'output', text: '  Path: /Users/captainsafia/gh/tests/grove/main', class: 'info' },
+            { type: 'command', text: 'grove go main' },
+            { type: 'output', text: '✓ Entering worktree: main', class: 'success' }
+        ];
+
+        const TYPING_SPEED = 35; // ms per character
+        const OUTPUT_DELAY = 80; // ms between output lines
+        const COMMAND_PAUSE = 400; // ms pause after command before output
+
+        function runDemo() {
+            const terminal = document.getElementById('terminal-content');
+            terminal.innerHTML = '';
+
+            let index = 0;
+
+            async function typeCommand(text, container) {
+                const commandSpan = document.createElement('span');
+                commandSpan.className = 'terminal-command';
+                container.appendChild(commandSpan);
+
+                const cursor = document.createElement('span');
+                cursor.className = 'typing-cursor';
+                container.appendChild(cursor);
+
+                for (let i = 0; i < text.length; i++) {
+                    commandSpan.textContent += text[i];
+                    terminal.scrollTop = terminal.scrollHeight;
+                    await new Promise(r => setTimeout(r, TYPING_SPEED));
+                }
+
+                cursor.remove();
+            }
+
+            async function showNextItem() {
+                if (index >= commands.length) return;
+
+                const item = commands[index];
+                const line = document.createElement('div');
+                line.className = 'terminal-line visible';
+
+                if (item.type === 'command') {
+                    const prompt = document.createElement('span');
+                    prompt.className = 'terminal-prompt';
+                    prompt.textContent = '$ ';
+                    line.appendChild(prompt);
+                    terminal.appendChild(line);
+
+                    await typeCommand(item.text, line);
+                    await new Promise(r => setTimeout(r, COMMAND_PAUSE));
+                } else {
+                    const output = document.createElement('span');
+                    output.className = `terminal-output ${item.class || ''}`;
+                    output.textContent = item.text;
+                    line.appendChild(output);
+                    terminal.appendChild(line);
+                    terminal.scrollTop = terminal.scrollHeight;
+                    await new Promise(r => setTimeout(r, OUTPUT_DELAY));
+                }
+
+                index++;
+                showNextItem();
+            }
+
+            showNextItem();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            runDemo();
+        });
+    </script>
 </body>
 </html>
