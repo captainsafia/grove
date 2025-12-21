@@ -81,7 +81,7 @@ async function runRemove(
     console.log(
       chalk.yellow("Use --force to remove it anyway, or commit/stash your changes first."),
     );
-    return;
+    process.exit(1);
   }
 
   // Confirm removal
