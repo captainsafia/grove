@@ -179,7 +179,10 @@ describe("self-update validation", () => {
   });
 
   describe("command construction with argument arrays", () => {
-    // Replicate the command construction logic from self-update.ts
+    // Replicate the command construction logic from self-update.ts to test behavior.
+    // This duplication is intentional - we're testing the expected command output format
+    // rather than the implementation details. The function in self-update.ts is private
+    // and we don't want to export it just for testing.
     function constructInstallCommand(
       version: string | undefined,
       pr: string | undefined
