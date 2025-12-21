@@ -107,9 +107,9 @@ jobs:
           IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
           echo "Signing with identity: $IDENTITY"
 
-          # Sign both binaries
-          codesign --force --options runtime --timestamp --sign "$IDENTITY" grove-darwin-x64
-          codesign --force --options runtime --timestamp --sign "$IDENTITY" grove-darwin-arm64
+          # Sign both binaries with JIT entitlements
+          codesign --force --options runtime --timestamp --entitlements .github/workflows/assets/entitlements.plist --sign "$IDENTITY" grove-darwin-x64
+          codesign --force --options runtime --timestamp --entitlements .github/workflows/assets/entitlements.plist --sign "$IDENTITY" grove-darwin-arm64
 
           # Verify signatures
           codesign --verify --verbose grove-darwin-x64
