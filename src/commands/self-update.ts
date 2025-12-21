@@ -46,19 +46,23 @@ async function runSelfUpdate(
     throw new Error("Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)");
   }
 
-  // Construct the install command
+  // Construct the install command using argument arrays
   const installScriptUrl = "https://safia.rocks/grove/install.sh";
-  let installCommand: string;
+  const curlArgs = ["curl", "-fsSL", installScriptUrl];
+  const shArgs = ["sh"];
 
+  // Build the command arguments based on options
   if (options?.pr) {
-    installCommand = `curl -fsSL ${installScriptUrl} | sh -s -- --pr ${options.pr}`;
+    shArgs.push("-s", "--", "--pr", options.pr);
   } else if (version) {
     // Ensure version starts with 'v'
     const versionTag = version.startsWith("v") ? version : `v${version}`;
-    installCommand = `curl -fsSL ${installScriptUrl} | sh -s -- ${versionTag}`;
-  } else {
-    installCommand = `curl -fsSL ${installScriptUrl} | sh`;
+    shArgs.push("-s", "--", versionTag);
   }
+
+  // Combine curl and sh commands with pipe
+  const commandParts = [...curlArgs, "|", ...shArgs];
+  const installCommand = commandParts.join(" ");
 
   // Execute the install command
   const proc = Bun.spawn(["sh", "-c", installCommand], {
