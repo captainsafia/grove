@@ -25,7 +25,7 @@ export function createPruneCommand(): Command {
     )
     .option(
       "--force",
-      "Remove worktrees even if they have uncommitted changes",
+      "Remove worktrees even if they have uncommitted changes and skip confirmation prompt",
       false,
     )
     .option(
@@ -185,7 +185,7 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
     }
   }
 
-  if (!options.yes) {
+  if (!options.yes && !options.force) {
     const answers = await inquirer.prompt([
       {
         type: "confirm",
