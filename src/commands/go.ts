@@ -37,8 +37,7 @@ async function runGo(name: string): Promise<void> {
   // Get the user's default shell
   const shell = process.env.SHELL || "/bin/sh";
 
-  console.log(chalk.blue(`Entering worktree '${worktree.branch}' at ${worktree.path}`));
-  console.log();
+  console.log(chalk.green("✓ Entering worktree:"), chalk.bold(worktree.branch));
 
   // Spawn an interactive shell in the worktree directory
   const child = spawn(shell, [], {
