@@ -3,6 +3,7 @@
 # Usage: curl -fsSL https://safia.rocks/grove/install.sh | sh
 # Usage with version: curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- v1.0.0
 # Usage with PR: curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- --pr 6
+# Usage with preview: curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- --preview
 
 set -e
 
@@ -11,6 +12,7 @@ INSTALL_DIR="${GROVE_INSTALL_DIR:-$HOME/.grove/bin}"
 BINARY_NAME="grove"
 REQUESTED_VERSION=""
 PR_NUMBER=""
+PREVIEW_MODE=""
 
 # Parse arguments
 while [ $# -gt 0 ]; do
@@ -18,6 +20,10 @@ while [ $# -gt 0 ]; do
         --pr)
             PR_NUMBER="$2"
             shift 2
+            ;;
+        --preview)
+            PREVIEW_MODE="1"
+            shift
             ;;
         -*)
             echo "Unknown option: $1"
@@ -133,11 +139,21 @@ get_source_cmd() {
     esac
 }
 
-# Get the latest release version
+# Get the latest stable release version
 get_latest_version() {
-    curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | 
-        grep '"tag_name":' | 
+    curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null |
+        grep '"tag_name":' |
         sed -E 's/.*"([^"]+)".*/\1/'
+}
+
+# Get the latest preview (pre-release) version
+get_latest_preview_version() {
+    curl -fsSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null |
+        grep -E '"tag_name":|"prerelease":' |
+        paste - - |
+        grep '"prerelease": true' |
+        head -1 |
+        sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'
 }
 
 # Get the latest workflow run for a PR
@@ -323,12 +339,24 @@ main() {
             *)  VERSION="v${REQUESTED_VERSION}" ;;
         esac
         echo "Requested version: ${VERSION}"
+    elif [ -n "$PREVIEW_MODE" ]; then
+        echo "Fetching latest preview release..."
+        VERSION=$(get_latest_preview_version)
+
+        if [ -z "$VERSION" ]; then
+            echo "Error: No preview releases available"
+            exit 1
+        fi
+        echo "Latest preview: ${VERSION}"
     else
         echo "Fetching latest release..."
         VERSION=$(get_latest_version)
-        
+
         if [ -z "$VERSION" ]; then
-            echo "Error: Could not determine latest version"
+            echo "Error: No stable releases available yet."
+            echo ""
+            echo "To install the latest preview release, run:"
+            echo "  curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- --preview"
             exit 1
         fi
         echo "Latest version: ${VERSION}"
@@ -352,7 +380,11 @@ main() {
     chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
     echo ""
-    echo "✅ Grove ${VERSION} installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
+    if [ -n "$PREVIEW_MODE" ]; then
+        echo "✅ Grove ${VERSION} (preview) installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
+    else
+        echo "✅ Grove ${VERSION} installed successfully to ${INSTALL_DIR}/${BINARY_NAME}"
+    fi
     echo ""
 
     # Detect current shell
