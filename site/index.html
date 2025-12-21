@@ -254,6 +254,15 @@
             </div>
 
             <div class="command-group">
+                <h4>Navigate to a worktree</h4>
+                <p>Open a new shell session in a worktree directory:</p>
+                <pre><code>grove go feature-branch</code></pre>
+                <p>Navigate by partial branch name for nested branches:</p>
+                <pre><code>grove go my-feature</code></pre>
+                <p>Exit the shell (Ctrl+D or <code>exit</code>) to return to your previous directory.</p>
+            </div>
+
+            <div class="command-group">
                 <h4>List worktrees</h4>
                 <p>Show all worktrees:</p>
                 <pre><code>grove list</code></pre>
@@ -319,6 +328,10 @@
                     <tr>
                         <td>grove add &lt;branch&gt;</td>
                         <td>Create a new worktree for a branch</td>
+                    </tr>
+                    <tr>
+                        <td>grove go &lt;name&gt;</td>
+                        <td>Navigate to a worktree</td>
                     </tr>
                     <tr>
                         <td>grove list [options]</td>

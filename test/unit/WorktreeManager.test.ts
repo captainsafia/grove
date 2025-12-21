@@ -219,4 +219,136 @@ describe("WorktreeManager", () => {
       );
     });
   });
+
+  describe("findWorktreeByName", () => {
+    test("should find worktree by exact branch name", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "config") {
+          return Promise.resolve("false");
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return Promise.resolve(
+            "worktree /home/user/repo/main\n" +
+            "HEAD abc123\n" +
+            "branch refs/heads/main\n" +
+            "\n" +
+            "worktree /home/user/repo/feature-branch\n" +
+            "HEAD def456\n" +
+            "branch refs/heads/feature-branch\n"
+          );
+        }
+        return Promise.resolve("");
+      });
+      mockGit.status.mockImplementation(() =>
+        Promise.resolve({ isClean: () => true })
+      );
+
+      const result = await manager.findWorktreeByName("feature-branch");
+
+      expect(result).toBeDefined();
+      expect(result?.branch).toBe("feature-branch");
+      expect(result?.path).toBe("/home/user/repo/feature-branch");
+    });
+
+    test("should find worktree by directory name", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "config") {
+          return Promise.resolve("false");
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return Promise.resolve(
+            "worktree /home/user/repo/my-worktree\n" +
+            "HEAD abc123\n" +
+            "branch refs/heads/feature/some-feature\n"
+          );
+        }
+        return Promise.resolve("");
+      });
+      mockGit.status.mockImplementation(() =>
+        Promise.resolve({ isClean: () => true })
+      );
+
+      const result = await manager.findWorktreeByName("my-worktree");
+
+      expect(result).toBeDefined();
+      expect(result?.branch).toBe("feature/some-feature");
+      expect(result?.path).toBe("/home/user/repo/my-worktree");
+    });
+
+    test("should find worktree by partial branch name suffix", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "config") {
+          return Promise.resolve("false");
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return Promise.resolve(
+            "worktree /home/user/repo/feature/my-feature\n" +
+            "HEAD abc123\n" +
+            "branch refs/heads/feature/my-feature\n"
+          );
+        }
+        return Promise.resolve("");
+      });
+      mockGit.status.mockImplementation(() =>
+        Promise.resolve({ isClean: () => true })
+      );
+
+      const result = await manager.findWorktreeByName("my-feature");
+
+      expect(result).toBeDefined();
+      expect(result?.branch).toBe("feature/my-feature");
+    });
+
+    test("should return undefined when worktree not found", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "config") {
+          return Promise.resolve("false");
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return Promise.resolve(
+            "worktree /home/user/repo/main\n" +
+            "HEAD abc123\n" +
+            "branch refs/heads/main\n"
+          );
+        }
+        return Promise.resolve("");
+      });
+      mockGit.status.mockImplementation(() =>
+        Promise.resolve({ isClean: () => true })
+      );
+
+      const result = await manager.findWorktreeByName("non-existent");
+
+      expect(result).toBeUndefined();
+    });
+
+    test("should prefer exact branch name match over directory name", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "config") {
+          return Promise.resolve("false");
+        }
+        if (args[0] === "worktree" && args[1] === "list") {
+          return Promise.resolve(
+            "worktree /home/user/repo/feature-branch\n" +
+            "HEAD abc123\n" +
+            "branch refs/heads/other-branch\n" +
+            "\n" +
+            "worktree /home/user/repo/other-dir\n" +
+            "HEAD def456\n" +
+            "branch refs/heads/feature-branch\n"
+          );
+        }
+        return Promise.resolve("");
+      });
+      mockGit.status.mockImplementation(() =>
+        Promise.resolve({ isClean: () => true })
+      );
+
+      const result = await manager.findWorktreeByName("feature-branch");
+
+      expect(result).toBeDefined();
+      expect(result?.branch).toBe("feature-branch");
+      expect(result?.path).toBe("/home/user/repo/other-dir");
+    });
+  });
 });

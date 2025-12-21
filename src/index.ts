@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { createAddCommand } from './commands/add';
+import { createGoCommand } from './commands/go';
 import { createInitCommand } from './commands/init';
 import { createListCommand } from './commands/list';
 import { createPruneCommand } from './commands/prune';
@@ -22,6 +23,7 @@ program
 
 // Add all commands
 program.addCommand(createAddCommand());
+program.addCommand(createGoCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createListCommand());
 program.addCommand(createPruneCommand());
