@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import {
   extractRepoName,
   parseDuration,
+  normalizeDuration,
   formatCreatedTime,
   formatPathWithTilde,
   isValidGitUrl,
@@ -219,6 +220,86 @@ describe("isValidGitUrl", () => {
   });
 });
 
+describe("normalizeDuration", () => {
+  describe("Human-friendly formats", () => {
+    test("should normalize days (30d to P30D)", () => {
+      expect(normalizeDuration("30d")).toBe("P30D");
+    });
+
+    test("should normalize weeks (2w to P2W)", () => {
+      expect(normalizeDuration("2w")).toBe("P2W");
+    });
+
+    test("should normalize months (6M to P6M)", () => {
+      expect(normalizeDuration("6M")).toBe("P6M");
+    });
+
+    test("should normalize years (1y to P1Y)", () => {
+      expect(normalizeDuration("1y")).toBe("P1Y");
+    });
+
+    test("should normalize hours (12h to PT12H)", () => {
+      expect(normalizeDuration("12h")).toBe("PT12H");
+    });
+
+    test("should normalize minutes (30m to PT30M)", () => {
+      expect(normalizeDuration("30m")).toBe("PT30M");
+    });
+
+    test("should normalize seconds (45s to PT45S)", () => {
+      expect(normalizeDuration("45s")).toBe("PT45S");
+    });
+
+    test("should handle uppercase units", () => {
+      expect(normalizeDuration("30D")).toBe("P30D");
+    });
+
+    test("should handle lowercase units", () => {
+      expect(normalizeDuration("2w")).toBe("P2W");
+    });
+
+    test("should handle whitespace between number and unit", () => {
+      expect(normalizeDuration("30 d")).toBe("P30D");
+    });
+
+    test("should handle decimal values", () => {
+      expect(normalizeDuration("1.5d")).toBe("P1.5D");
+    });
+  });
+
+  describe("ISO 8601 formats (should pass through)", () => {
+    test("should pass through P30D unchanged", () => {
+      expect(normalizeDuration("P30D")).toBe("P30D");
+    });
+
+    test("should pass through P2W unchanged", () => {
+      expect(normalizeDuration("P2W")).toBe("P2W");
+    });
+
+    test("should pass through PT1H unchanged", () => {
+      expect(normalizeDuration("PT1H")).toBe("PT1H");
+    });
+
+    test("should pass through lowercase p30d", () => {
+      expect(normalizeDuration("p30d")).toBe("p30d");
+    });
+  });
+
+  describe("Invalid formats (should pass through for parseDuration to handle)", () => {
+    test("should pass through empty string", () => {
+      expect(normalizeDuration("")).toBe("");
+    });
+
+    test("should pass through invalid format", () => {
+      expect(normalizeDuration("30 days")).toBe("30 days");
+    });
+
+    test("should pass through number without unit", () => {
+      expect(normalizeDuration("30")).toBe("30");
+    });
+  });
+});
+
 describe("parseDuration", () => {
   describe("Valid ISO 8601 durations", () => {
     test("should parse days (P30D)", () => {
@@ -260,6 +341,55 @@ describe("parseDuration", () => {
 
     test("should handle lowercase input", () => {
       const result = parseDuration("p30d");
+      expect(result).toBe(30 * 24 * 60 * 60 * 1000);
+    });
+  });
+
+  describe("Human-friendly formats", () => {
+    test("should parse days (30d)", () => {
+      const result = parseDuration("30d");
+      expect(result).toBe(30 * 24 * 60 * 60 * 1000);
+    });
+
+    test("should parse weeks (2w)", () => {
+      const result = parseDuration("2w");
+      expect(result).toBe(14 * 24 * 60 * 60 * 1000);
+    });
+
+    test("should parse months (6M)", () => {
+      const result = parseDuration("6M");
+      // Moment calculates months, approximately 182 days for 6 months
+      expect(result).toBeGreaterThan(15500000000);
+      expect(result).toBeLessThan(16000000000);
+    });
+
+    test("should parse years (1y)", () => {
+      const result = parseDuration("1y");
+      expect(result).toBe(365 * 24 * 60 * 60 * 1000);
+    });
+
+    test("should parse hours (12h)", () => {
+      const result = parseDuration("12h");
+      expect(result).toBe(12 * 60 * 60 * 1000);
+    });
+
+    test("should parse minutes (30m)", () => {
+      const result = parseDuration("30m");
+      expect(result).toBe(30 * 60 * 1000);
+    });
+
+    test("should parse seconds (45s)", () => {
+      const result = parseDuration("45s");
+      expect(result).toBe(45 * 1000);
+    });
+
+    test("should handle uppercase human-friendly format", () => {
+      const result = parseDuration("30D");
+      expect(result).toBe(30 * 24 * 60 * 60 * 1000);
+    });
+
+    test("should handle whitespace in human-friendly format", () => {
+      const result = parseDuration("30 d");
       expect(result).toBe(30 * 24 * 60 * 60 * 1000);
     });
   });

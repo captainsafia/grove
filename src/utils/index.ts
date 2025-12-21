@@ -69,13 +69,97 @@ export function extractRepoName(gitUrl: string): string {
   return repoName;
 }
 
-export function parseDuration(durationStr: string): number {
+/**
+ * Normalize human-friendly duration strings to ISO 8601 format.
+ * Accepts formats like: 30d, 2w, 6M, 1y, 12h, 30m
+ * Returns ISO 8601 format: P30D, P2W, P6M, P1Y, PT12H, PT30M
+ * Note: Uppercase M = months, lowercase m = minutes
+ */
+export function normalizeDuration(durationStr: string): string {
   if (!durationStr || durationStr.trim() === '') {
-    throw new Error('Duration cannot be empty (use ISO 8601 duration format like P30D, P1Y, P2W, PT1H)');
+    return durationStr;
   }
 
+  const normalized = durationStr.trim();
+  
+  // If it already starts with 'P', assume it's ISO 8601 format
+  if (normalized.toUpperCase().startsWith('P')) {
+    return normalized;
+  }
+
+  // Match patterns like: 30d, 2w, 6M, 1y, 12h, 30m
+  // Note: M (uppercase) = months, m (lowercase) = minutes
+  // Case-insensitive match, but we preserve the M/m distinction
+  const match = normalized.match(/^(\d+(?:\.\d+)?)\s*([dDwWMmyYhHsS])$/);
+  if (!match) {
+    // Return as-is if format doesn't match - let parseDuration handle error
+    return normalized;
+  }
+
+  const [, value, unit] = match;
+
+  // Map human-friendly units to ISO 8601 format
+  // Time units (h, H, m, s, S) need PT prefix
+  // Date units (d, D, w, W, M, y, Y) need P prefix
+  let iso8601Unit: string;
+  let isTimeUnit: boolean;
+  
+  switch (unit) {
+    case 'd':
+    case 'D':
+      iso8601Unit = 'D';
+      isTimeUnit = false;
+      break;
+    case 'w':
+    case 'W':
+      iso8601Unit = 'W';
+      isTimeUnit = false;
+      break;
+    case 'M':  // Uppercase M = months
+      iso8601Unit = 'M';
+      isTimeUnit = false;
+      break;
+    case 'y':
+    case 'Y':
+      iso8601Unit = 'Y';
+      isTimeUnit = false;
+      break;
+    case 'h':
+    case 'H':
+      iso8601Unit = 'H';
+      isTimeUnit = true;
+      break;
+    case 'm':  // Lowercase m = minutes
+      iso8601Unit = 'M';
+      isTimeUnit = true;
+      break;
+    case 's':
+    case 'S':
+      iso8601Unit = 'S';
+      isTimeUnit = true;
+      break;
+    default:
+      return normalized;
+  }
+
+  // Time units need PT prefix, date units need P prefix
+  if (isTimeUnit) {
+    return `PT${value}${iso8601Unit}`;
+  } else {
+    return `P${value}${iso8601Unit}`;
+  }
+}
+
+export function parseDuration(durationStr: string): number {
+  if (!durationStr || durationStr.trim() === '') {
+    throw new Error('Duration cannot be empty (use formats like: 30d, 2w, 6M, 1y, 12h, 30m or ISO 8601 like P30D, P1Y, P2W, PT1H)');
+  }
+
+  // Normalize human-friendly format to ISO 8601
+  const normalized = normalizeDuration(durationStr);
+
   try {
-    const duration = moment.duration(durationStr.toUpperCase());
+    const duration = moment.duration(normalized.toUpperCase());
     if (duration.asMilliseconds() > 0) {
       return duration.asMilliseconds();
     } else {
@@ -83,7 +167,7 @@ export function parseDuration(durationStr: string): number {
     }
   } catch (error) {
     throw new Error(
-      `Invalid duration format: ${durationStr} (use ISO 8601 duration format like P30D, P1Y, P2W, PT1H)`,
+      `Invalid duration format: ${durationStr} (use formats like: 30d, 2w, 6M, 1y, 12h, 30m or ISO 8601 like P30D, P1Y, P2W, PT1H)`,
     );
   }
 }
