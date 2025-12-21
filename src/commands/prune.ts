@@ -35,7 +35,7 @@ export function createPruneCommand(): Command {
     .option("-y, --yes", "Skip confirmation prompt", false)
     .option(
       "--older-than <duration>",
-      "Prune worktrees older than specified duration, bypassing merge check (use ISO 8601 format like P30D, P1Y, P2W, PT1H)",
+      "Prune worktrees older than specified duration, bypassing merge check (e.g., 30d, 2w, 6M, 1y, or ISO 8601 like P30D, P1Y)",
     )
     .action(async (options: PruneCommandOptions) => {
       try {
