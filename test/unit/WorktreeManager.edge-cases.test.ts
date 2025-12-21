@@ -357,6 +357,14 @@ prunable
         if (args[0] === "branch" && args[1] === "--merged") {
           return Promise.resolve("  main\n");
         }
+        if (args[0] === "diff" && args[1] === "--name-only") {
+          if (args[2]?.includes("...")) {
+            // Three-dot diff: files changed by branch
+            return Promise.resolve("src/file.ts\n");
+          }
+          // Two-arg diff: check if files differ (non-empty = different)
+          return Promise.resolve("src/file.ts\n");
+        }
         return Promise.resolve("");
       });
 
@@ -370,12 +378,39 @@ prunable
         if (args[0] === "branch" && args[1] === "--merged") {
           return Promise.resolve("");
         }
+        if (args[0] === "diff" && args[1] === "--name-only") {
+          if (args[2]?.includes("...")) {
+            return Promise.resolve("src/file.ts\n");
+          }
+          return Promise.resolve("src/file.ts\n");
+        }
         return Promise.resolve("");
       });
 
       const result = await manager.isBranchMerged("any-branch", "main");
 
       expect(result).toBe(false);
+    });
+
+    test("should detect squash-merged branch", async () => {
+      mockGit.raw.mockImplementation((args) => {
+        if (args[0] === "branch" && args[1] === "--merged") {
+          return Promise.resolve("  main\n");
+        }
+        if (args[0] === "diff" && args[1] === "--name-only") {
+          if (args[2]?.includes("...")) {
+            // Branch changed this file
+            return Promise.resolve("src/file.ts\n");
+          }
+          // But the file is identical in base (empty diff = squash-merged)
+          return Promise.resolve("");
+        }
+        return Promise.resolve("");
+      });
+
+      const result = await manager.isBranchMerged("squash-merged-feature", "main");
+
+      expect(result).toBe(true);
     });
   });
 

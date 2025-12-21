@@ -61,9 +61,14 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
       });
       isNewBranch = true;
     } catch (newBranchError) {
-      // If both fail, provide a helpful error message
-      const errorMessage = newBranchError instanceof Error ? newBranchError.message : String(newBranchError);
-      throw new Error(`Failed to create worktree: ${errorMessage}`);
+      // If both fail, provide context from both attempts
+      const existingError = existingBranchError instanceof Error ? existingBranchError.message : String(existingBranchError);
+      const newError = newBranchError instanceof Error ? newBranchError.message : String(newBranchError);
+      throw new Error(
+        `Failed to create worktree for '${name}':\n` +
+        `  As existing branch: ${existingError}\n` +
+        `  As new branch: ${newError}`
+      );
     }
   }
 

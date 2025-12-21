@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import inquirer from "inquirer";
+import confirm from "@inquirer/confirm";
 import { WorktreeManager, DETACHED_HEAD } from "../git/WorktreeManager";
 import { Worktree, PruneOptions } from "../models";
 import { parseDuration } from "../utils";
@@ -9,7 +9,6 @@ interface PruneCommandOptions {
   dryRun: boolean;
   force: boolean;
   base?: string;
-  yes: boolean;
   olderThan?: string;
 }
 
@@ -24,15 +23,14 @@ export function createPruneCommand(): Command {
       false,
     )
     .option(
-      "--force",
-      "Remove worktrees even if they have uncommitted changes and skip confirmation prompt",
+      "-f, --force",
+      "Skip confirmation and remove worktrees even with uncommitted changes",
       false,
     )
     .option(
       "--base <branch>",
       "Base branch to check for merged branches (ignored when --older-than is used)",
     )
-    .option("-y, --yes", "Skip confirmation prompt", false)
     .option(
       "--older-than <duration>",
       "Prune worktrees older than specified duration, bypassing merge check (e.g., 30d, 2w, 6M, 1y, or ISO 8601 like P30D, P1Y)",
@@ -170,52 +168,24 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
 
   if (!options.force) {
     const dirtyCount = candidatesForPruning.filter((wt) => wt.isDirty).length;
-    if (dirtyCount > 0) {
-      console.log(
-        chalk.yellow(
-          `Warning: ${dirtyCount} worktree(s) have uncommitted changes.`,
-        ),
-      );
-      console.log(
-        chalk.yellow(
-          "Use --force to remove them anyway, or commit/stash your changes first.",
-        ),
-      );
-      console.log();
-    }
-  }
+    const confirmMessage = dirtyCount > 0
+      ? `Remove ${candidatesForPruning.length} worktree(s)? ${dirtyCount} ${dirtyCount === 1 ? "has" : "have"} uncommitted changes that will be lost.`
+      : `Remove ${candidatesForPruning.length} worktree(s)?`;
 
-  if (!options.yes && !options.force) {
-    const answers = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "proceed",
-        message: "Do you want to proceed with removing these worktrees?",
-        default: false,
-      },
-    ]);
+    const proceed = await confirm({
+      message: confirmMessage,
+      default: false,
+    });
 
-    if (!answers.proceed) {
+    if (!proceed) {
       console.log(chalk.blue("Operation cancelled."));
       return;
     }
   }
 
-  // Filter out dirty worktrees if not forcing
-  const worktreesToRemove = options.force
-    ? candidatesForPruning
-    : candidatesForPruning.filter((wt) => !wt.isDirty);
-
-  if (worktreesToRemove.length === 0) {
-    console.log(chalk.yellow("No worktrees to remove (all candidates have uncommitted changes)."));
-    console.log(chalk.yellow("Use --force to remove them anyway."));
-    process.exit(1);
-  }
-
   console.log(chalk.blue("\nRemoving worktrees..."));
 
-  // Use the confirmed list of worktrees directly to avoid re-evaluation
-  const result = await manager.removeWorktrees(worktreesToRemove, options.force);
+  const result = await manager.removeWorktrees(candidatesForPruning, true);
 
   for (const path of result.removed) {
     console.log(chalk.green(`✓ Removed worktree: ${path}`));

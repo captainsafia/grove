@@ -1,23 +1,13 @@
 import * as path from "path";
-import moment from "moment";
-import chalk from "chalk";
 
-/**
- * Unified error formatting helper for consistent CLI error messages
- */
-export function formatError(message: string, hint?: string): void {
-  console.error(chalk.red('Error:'), message);
-  if (hint) {
-    console.error(chalk.yellow('  Hint:'), hint);
-  }
-}
-
-/**
- * Format and print a warning message
- */
-export function formatWarning(message: string): void {
-  console.warn(chalk.yellow('Warning:'), message);
-}
+// Duration constants in milliseconds
+const MS_PER_SECOND = 1000;
+const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+const MS_PER_MONTH = 30 * MS_PER_DAY; // Approximate
+const MS_PER_YEAR = 365 * MS_PER_DAY;
 
 export function isValidGitUrl(url: string): boolean {
   if (!url || typeof url !== 'string') {
@@ -150,6 +140,55 @@ export function normalizeDuration(durationStr: string): string {
   }
 }
 
+/**
+ * Parse ISO 8601 duration string to milliseconds.
+ * Supports: P[n]Y[n]M[n]W[n]DT[n]H[n]M[n]S
+ */
+function parseISO8601Duration(iso: string): number {
+  const upper = iso.toUpperCase();
+
+  // Must start with P
+  if (!upper.startsWith('P')) {
+    return 0;
+  }
+
+  let totalMs = 0;
+  const remaining = upper.slice(1);
+
+  // Split into date and time parts
+  const tIndex = remaining.indexOf('T');
+  const datePart = tIndex >= 0 ? remaining.slice(0, tIndex) : remaining;
+  const timePart = tIndex >= 0 ? remaining.slice(tIndex + 1) : '';
+
+  // Parse date part: [n]Y[n]M[n]W[n]D
+  const datePattern = /(\d+(?:\.\d+)?)(Y|M|W|D)/g;
+  let match;
+  while ((match = datePattern.exec(datePart)) !== null) {
+    const value = parseFloat(match[1]);
+    const unit = match[2];
+    switch (unit) {
+      case 'Y': totalMs += value * MS_PER_YEAR; break;
+      case 'M': totalMs += value * MS_PER_MONTH; break;
+      case 'W': totalMs += value * MS_PER_WEEK; break;
+      case 'D': totalMs += value * MS_PER_DAY; break;
+    }
+  }
+
+  // Parse time part: [n]H[n]M[n]S
+  const timePattern = /(\d+(?:\.\d+)?)(H|M|S)/g;
+  while ((match = timePattern.exec(timePart)) !== null) {
+    const value = parseFloat(match[1]);
+    const unit = match[2];
+    switch (unit) {
+      case 'H': totalMs += value * MS_PER_HOUR; break;
+      case 'M': totalMs += value * MS_PER_MINUTE; break;
+      case 'S': totalMs += value * MS_PER_SECOND; break;
+    }
+  }
+
+  return totalMs;
+}
+
 export function parseDuration(durationStr: string): number {
   if (!durationStr || durationStr.trim() === '') {
     throw new Error('Duration cannot be empty (use formats like: 30d, 2w, 6M, 1y, 12h, 30m or ISO 8601 like P30D, P1Y, P2W, PT1H)');
@@ -158,18 +197,14 @@ export function parseDuration(durationStr: string): number {
   // Normalize human-friendly format to ISO 8601
   const normalized = normalizeDuration(durationStr);
 
-  try {
-    const duration = moment.duration(normalized.toUpperCase());
-    if (duration.asMilliseconds() > 0) {
-      return duration.asMilliseconds();
-    } else {
-      throw new Error(`Invalid or zero duration: ${durationStr}`);
-    }
-  } catch (error) {
-    throw new Error(
-      `Invalid duration format: ${durationStr} (use formats like: 30d, 2w, 6M, 1y, 12h, 30m or ISO 8601 like P30D, P1Y, P2W, PT1H)`,
-    );
+  const ms = parseISO8601Duration(normalized);
+  if (ms > 0) {
+    return ms;
   }
+
+  throw new Error(
+    `Invalid duration format: ${durationStr} (use formats like: 30d, 2w, 6M, 1y, 12h, 30m or ISO 8601 like P30D, P1Y, P2W, PT1H)`,
+  );
 }
 
 export function formatCreatedTime(date: Date): string {

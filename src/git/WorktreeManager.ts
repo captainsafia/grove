@@ -171,17 +171,55 @@ export class WorktreeManager {
 
   async isBranchMerged(branch: string, baseBranch: string): Promise<boolean> {
     try {
+      // First, check for regular merges using git branch --merged
       const result = await this.git.raw(["branch", "--merged", baseBranch]);
       const mergedBranches = result
         .split("\n")
         .map((line) => line.trim().replace(/^\*?\s*/, ""))
         .filter((line) => line);
 
-      return mergedBranches.includes(branch);
+      if (mergedBranches.includes(branch)) {
+        return true;
+      }
+
+      // Check for squash merges by comparing the files changed by the branch
+      // If all files the branch touched are identical to the base, it was squash-merged
+      return await this.isSquashMerged(branch, baseBranch);
     } catch (error) {
       throw new Error(
         `Failed to check if branch ${branch} is merged: ${error}`,
       );
+    }
+  }
+
+  private async isSquashMerged(branch: string, baseBranch: string): Promise<boolean> {
+    try {
+      // Get files the branch changed (from merge-base to branch tip)
+      // Uses three-dot syntax which is equivalent to diff against merge-base
+      const branchFiles = await this.git.raw([
+        "diff",
+        "--name-only",
+        `${baseBranch}...${branch}`,
+      ]);
+
+      const files = branchFiles.trim().split("\n").filter((f) => f);
+      if (files.length === 0) {
+        return true;
+      }
+
+      // Check if those specific files are identical between branch and base
+      const diff = await this.git.raw([
+        "diff",
+        "--name-only",
+        baseBranch,
+        branch,
+        "--",
+        ...files,
+      ]);
+
+      return diff.trim() === "";
+    } catch {
+      return false;
     }
   }
 

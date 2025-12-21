@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import inquirer from "inquirer";
+import confirm from "@inquirer/confirm";
 import { WorktreeManager } from "../git/WorktreeManager";
 
 interface RemoveCommandOptions {
@@ -90,16 +90,12 @@ async function runRemove(
       ? `Are you sure you want to remove the worktree for '${worktree.branch}'? Uncommitted changes will be lost!`
       : `Are you sure you want to remove the worktree for '${worktree.branch}'?`;
 
-    const answers = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "proceed",
-        message: confirmMessage,
-        default: false,
-      },
-    ]);
+    const proceed = await confirm({
+      message: confirmMessage,
+      default: false,
+    });
 
-    if (!answers.proceed) {
+    if (!proceed) {
       console.log(chalk.blue("Operation cancelled."));
       return;
     }

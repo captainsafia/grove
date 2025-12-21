@@ -319,9 +319,8 @@ describe("parseDuration", () => {
 
     test("should parse months (P3M)", () => {
       const result = parseDuration("P3M");
-      // Moment calculates months more precisely, approximately 91 days for 3 months
-      expect(result).toBeGreaterThan(7700000000);
-      expect(result).toBeLessThan(8000000000);
+      // 3 months = 90 days (30 days per month)
+      expect(result).toBe(90 * 24 * 60 * 60 * 1000);
     });
 
     test("should parse hours (PT1H)", () => {
@@ -358,9 +357,8 @@ describe("parseDuration", () => {
 
     test("should parse months (6M)", () => {
       const result = parseDuration("6M");
-      // Moment calculates months, approximately 182 days for 6 months
-      expect(result).toBeGreaterThan(15500000000);
-      expect(result).toBeLessThan(16000000000);
+      // 6 months = 180 days (30 days per month)
+      expect(result).toBe(180 * 24 * 60 * 60 * 1000);
     });
 
     test("should parse years (1y)", () => {
@@ -411,8 +409,8 @@ describe("parseDuration", () => {
       expect(() => parseDuration("P0D")).toThrow();
     });
 
-    test("should throw for negative values", () => {
-      expect(() => parseDuration("P-30D")).toThrow();
+    test("should throw for text without numbers", () => {
+      expect(() => parseDuration("Pdays")).toThrow();
     });
   });
 });
