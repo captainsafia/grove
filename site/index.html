@@ -264,7 +264,7 @@
 
             <div class="command-group">
                 <h4>List worktrees</h4>
-                <p>Show all worktrees:</p>
+                <p>Show all worktrees (alias: <code>grove ls</code>):</p>
                 <pre><code>grove list</code></pre>
                 <p>Show detailed information:</p>
                 <pre><code>grove list --details</code></pre>
@@ -286,18 +286,19 @@
                 <pre><code>grove prune --dry-run</code></pre>
                 <p>Remove worktrees for branches merged to main:</p>
                 <pre><code>grove prune</code></pre>
-                <p>Remove worktrees older than 30 days:</p>
-                <pre><code>grove prune --older-than 30d</code></pre>
+                <p>Remove worktrees older than 30 days (uses ISO 8601 duration format):</p>
+                <pre><code>grove prune --older-than P30D</code></pre>
                 <p>Use a different base branch:</p>
                 <pre><code>grove prune --base develop</code></pre>
             </div>
 
             <div class="command-group">
                 <h4>Remove a worktree</h4>
-                <p>Remove a specific worktree:</p>
-                <pre><code>grove remove /path/to/worktree</code></pre>
+                <p>Remove a specific worktree (alias: <code>grove rm</code>):</p>
+                <pre><code>grove remove feature-branch</code></pre>
                 <p>Force removal even with uncommitted changes:</p>
-                <pre><code>grove remove /path/to/worktree --force</code></pre>
+                <pre><code>grove remove feature-branch --force</code></pre>
+                <p>Note: Dirty worktrees require <code>--force</code> to remove.</p>
             </div>
 
             <div class="command-group">
@@ -334,7 +335,7 @@
                         <td>Navigate to a worktree</td>
                     </tr>
                     <tr>
-                        <td>grove list [options]</td>
+                        <td>grove list (ls) [options]</td>
                         <td>List all worktrees</td>
                     </tr>
                     <tr>
@@ -346,7 +347,7 @@
                         <td>Remove worktrees for merged branches</td>
                     </tr>
                     <tr>
-                        <td>grove remove &lt;path&gt;</td>
+                        <td>grove remove (rm) &lt;name&gt;</td>
                         <td>Remove a specific worktree</td>
                     </tr>
                     <tr>
@@ -367,9 +368,8 @@
 
         <footer>
             <p>
-                Created by <a href="https://safia.rocks">@captainsafia</a> · 
-                <a href="https://github.com/captainsafia/grove">GitHub</a> · 
-                <a href="https://www.npmjs.com/package/@captainsafia/grove">npm</a> · 
+                Created by <a href="https://safia.rocks">@captainsafia</a> ·
+                <a href="https://github.com/captainsafia/grove">GitHub</a> ·
                 Licensed under MIT
             </p>
         </footer>

@@ -12,6 +12,7 @@ export function createRemoveCommand(): Command {
   const command = new Command("remove");
 
   command
+    .alias("rm")
     .description("Remove a worktree")
     .argument("<name>", "Branch name or path of the worktree to remove")
     .option(
@@ -39,6 +40,10 @@ async function runRemove(
   name: string,
   options: RemoveCommandOptions,
 ): Promise<void> {
+  if (!name || !name.trim()) {
+    throw new Error('Branch name is required');
+  }
+
   const manager = new WorktreeManager();
   await manager.initialize();
 
@@ -70,24 +75,26 @@ async function runRemove(
     );
   }
 
-  // Warn about dirty worktrees
+  // Block removal of dirty worktrees without --force
   if (worktree.isDirty && !options.force) {
     console.log(chalk.yellow("Warning: This worktree has uncommitted changes."));
     console.log(
       chalk.yellow("Use --force to remove it anyway, or commit/stash your changes first."),
     );
-    console.log();
+    return;
   }
-
-
 
   // Confirm removal
   if (!options.yes) {
+    const confirmMessage = worktree.isDirty
+      ? `Are you sure you want to remove the worktree for '${worktree.branch}'? Uncommitted changes will be lost!`
+      : `Are you sure you want to remove the worktree for '${worktree.branch}'?`;
+
     const answers = await inquirer.prompt([
       {
         type: "confirm",
         name: "proceed",
-        message: `Are you sure you want to remove the worktree for '${worktree.branch}'?`,
+        message: confirmMessage,
         default: false,
       },
     ]);

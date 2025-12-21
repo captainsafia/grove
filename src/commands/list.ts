@@ -12,6 +12,7 @@ export function createListCommand(): Command {
   const command = new Command("list");
 
   command
+    .alias("ls")
     .description("List all worktrees")
     .option("--details", "Show detailed information", false)
     .option("--dirty", "Show only dirty worktrees", false)

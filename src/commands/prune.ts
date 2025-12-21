@@ -8,7 +8,7 @@ import { parseDuration } from "../utils";
 interface PruneCommandOptions {
   dryRun: boolean;
   force: boolean;
-  base: string;
+  base?: string;
   yes: boolean;
   olderThan?: string;
 }
@@ -31,7 +31,6 @@ export function createPruneCommand(): Command {
     .option(
       "--base <branch>",
       "Base branch to check for merged branches (ignored when --older-than is used)",
-      "main",
     )
     .option("-y, --yes", "Skip confirmation prompt", false)
     .option(
@@ -55,7 +54,7 @@ export function createPruneCommand(): Command {
 
 async function runPrune(options: PruneCommandOptions): Promise<void> {
   // Validate options
-  if (options.olderThan && options.base !== "main") {
+  if (options.olderThan && options.base) {
     throw new Error(
       "--base and --older-than cannot be used together (--base is ignored when --older-than is specified)",
     );
@@ -72,10 +71,14 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
   const manager = new WorktreeManager();
   await manager.initialize();
 
+  // Get the base branch (use default if not specified and not using --older-than)
+  let baseBranch = options.base;
+  if (!options.olderThan && !baseBranch) {
+    baseBranch = await manager.getDefaultBranch();
+  }
+
   const worktrees = await manager.listWorktrees();
   const candidatesForPruning: Worktree[] = [];
-
-
 
   for (const wt of worktrees) {
     if (wt.isMain || wt.isLocked) {
@@ -86,7 +89,7 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
       continue;
     }
 
-    if (options.base && wt.branch.includes(options.base)) {
+    if (baseBranch && wt.branch === baseBranch) {
       continue;
     }
 
@@ -98,7 +101,7 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
       candidatesForPruning.push(wt);
     } else {
       try {
-        const isMerged = await manager.isBranchMerged(wt.branch, options.base);
+        const isMerged = await manager.isBranchMerged(wt.branch, baseBranch!);
         if (isMerged) {
           candidatesForPruning.push(wt);
         }

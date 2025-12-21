@@ -70,36 +70,9 @@ export class WorktreeManager {
   async *streamWorktrees(): AsyncGenerator<Worktree, void, unknown> {
     try {
       const result = await this.git.raw(["worktree", "list", "--porcelain"]);
-      const lines = result.trim().split("\n");
 
-      let currentWorktree: Partial<Worktree> = {};
-      let isBare = false;
-
-      for (const line of lines) {
-        if (line.startsWith("worktree ")) {
-          if (currentWorktree.path && !isBare) {
-            const completedWorktree = await this.completeWorktreeInfo(currentWorktree as Worktree);
-            yield completedWorktree;
-          }
-          currentWorktree = { path: line.substring(9) };
-          isBare = false; // Reset for new worktree
-        } else if (line.startsWith("HEAD ")) {
-          currentWorktree.head = line.substring(5);
-        } else if (line.startsWith("branch ")) {
-          currentWorktree.branch = line.substring(7).replace("refs/heads/", "");
-        } else if (line === "detached") {
-          currentWorktree.branch = DETACHED_HEAD;
-        } else if (line === "locked") {
-          currentWorktree.isLocked = true;
-        } else if (line === "prunable") {
-          currentWorktree.isPrunable = true;
-        } else if (line === "bare") {
-          isBare = true;
-        }
-      }
-
-      if (currentWorktree.path && !isBare) {
-        const completedWorktree = await this.completeWorktreeInfo(currentWorktree as Worktree);
+      for (const partialWorktree of this.parseWorktreeLines(result)) {
+        const completedWorktree = await this.completeWorktreeInfo(partialWorktree as Worktree);
         yield completedWorktree;
       }
     } catch (error) {
@@ -109,6 +82,17 @@ export class WorktreeManager {
 
   private async parseWorktreeList(output: string): Promise<Worktree[]> {
     const worktrees: Worktree[] = [];
+
+    for (const partialWorktree of this.parseWorktreeLines(output)) {
+      worktrees.push(
+        await this.completeWorktreeInfo(partialWorktree as Worktree),
+      );
+    }
+
+    return worktrees;
+  }
+
+  private *parseWorktreeLines(output: string): Generator<Partial<Worktree>, void, unknown> {
     const lines = output.trim().split("\n");
 
     let currentWorktree: Partial<Worktree> = {};
@@ -117,12 +101,10 @@ export class WorktreeManager {
     for (const line of lines) {
       if (line.startsWith("worktree ")) {
         if (currentWorktree.path && !isBare) {
-          worktrees.push(
-            await this.completeWorktreeInfo(currentWorktree as Worktree),
-          );
+          yield currentWorktree;
         }
         currentWorktree = { path: line.substring(9) };
-        isBare = false; // Reset for new worktree
+        isBare = false;
       } else if (line.startsWith("HEAD ")) {
         currentWorktree.head = line.substring(5);
       } else if (line.startsWith("branch ")) {
@@ -139,12 +121,8 @@ export class WorktreeManager {
     }
 
     if (currentWorktree.path && !isBare) {
-      worktrees.push(
-        await this.completeWorktreeInfo(currentWorktree as Worktree),
-      );
+      yield currentWorktree;
     }
-
-    return worktrees;
   }
 
   private async completeWorktreeInfo(worktree: Worktree): Promise<Worktree> {

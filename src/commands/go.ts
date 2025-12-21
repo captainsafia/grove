@@ -25,6 +25,10 @@ export function createGoCommand(): Command {
 }
 
 async function runGo(name: string): Promise<void> {
+  if (!name || !name.trim()) {
+    throw new Error('Branch name is required');
+  }
+
   const manager = new WorktreeManager();
   await manager.initialize();
 
@@ -51,8 +55,12 @@ async function runGo(name: string): Promise<void> {
 
   // Wait for the shell to exit
   await new Promise<void>((resolve, reject) => {
-    child.on("close", (code) => {
-      if (code === 0 || code === null) {
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        console.log(chalk.gray("Exited worktree shell."));
+        resolve();
+      } else if (signal) {
+        console.log(chalk.gray(`Shell terminated by signal: ${signal}`));
         resolve();
       } else {
         reject(new Error(`Shell exited with code ${code}`));
