@@ -173,6 +173,8 @@ Remove worktrees older than a specific duration (bypasses merge check):
 
 **Note:** When using `--older-than`, the merge status check is bypassed, and all worktrees older than the specified duration will be removed. The `--base` flag cannot be used with `--older-than`.
 
+You can use human-friendly formats (e.g., `30d`, `2w`, `6M`, `1y`) or ISO 8601 duration format (e.g., `P30D`, `P2W`, `P6M`, `P1Y`):
+
 ```bash
 # Remove worktrees older than 30 days
 grove prune --older-than 30d
@@ -185,6 +187,9 @@ grove prune --older-than 1y
 
 # Preview what would be removed for worktrees older than 2 weeks
 grove prune --older-than 2w --dry-run
+
+# ISO 8601 format is also supported
+grove prune --older-than P30D
 ```
 
 ### Self-update

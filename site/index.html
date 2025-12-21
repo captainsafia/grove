@@ -286,8 +286,10 @@
                 <pre><code>grove prune --dry-run</code></pre>
                 <p>Remove worktrees for branches merged to main:</p>
                 <pre><code>grove prune</code></pre>
-                <p>Remove worktrees older than 30 days (uses ISO 8601 duration format):</p>
-                <pre><code>grove prune --older-than P30D</code></pre>
+                <p>Remove worktrees older than 30 days (supports human-friendly or ISO 8601 format):</p>
+                <pre><code>grove prune --older-than 30d
+# or
+grove prune --older-than P30D</code></pre>
                 <p>Use a different base branch:</p>
                 <pre><code>grove prune --base develop</code></pre>
             </div>
