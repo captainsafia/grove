@@ -33,30 +33,37 @@ export function createListCommand(): Command {
   return command;
 }
 
+function shouldIncludeWorktree(worktree: Worktree, options: WorktreeListOptions): boolean {
+  if (options.dirty && !worktree.isDirty) {
+    return false;
+  }
+  if (options.locked && !worktree.isLocked) {
+    return false;
+  }
+  return true;
+}
+
 async function runList(options: ListCommandOptions): Promise<void> {
   const manager = new WorktreeManager();
   await manager.initialize();
 
-  const worktrees: Worktree[] = [];
   let foundAny = false;
+  let matchedAny = false;
 
-  // Collect all worktrees
-  for await (const worktree of manager.streamWorktrees()) {
-    foundAny = true;
-
-    // Apply filters
-    if (options.dirty && !worktree.isDirty) {
-      continue;
-    }
-    if (options.locked && !worktree.isLocked) {
-      continue;
-    }
-
-    worktrees.push(worktree);
-  }
-
-  // Handle JSON output
+  // Handle JSON output - needs to collect all data first
   if (options.json) {
+    const worktrees: Worktree[] = [];
+    
+    for await (const worktree of manager.streamWorktrees()) {
+      foundAny = true;
+
+      if (!shouldIncludeWorktree(worktree, options)) {
+        continue;
+      }
+
+      worktrees.push(worktree);
+    }
+
     const jsonOutput = worktrees.map(wt => ({
       path: wt.path,
       branch: wt.branch,
@@ -78,14 +85,21 @@ async function runList(options: ListCommandOptions): Promise<void> {
   }
   console.log();
 
-  // Display worktrees
-  for (const worktree of worktrees) {
+  // Stream and print worktrees as they come in
+  for await (const worktree of manager.streamWorktrees()) {
+    foundAny = true;
+
+    if (!shouldIncludeWorktree(worktree, options)) {
+      continue;
+    }
+
+    matchedAny = true;
     printWorktreeItem(worktree, options);
   }
 
   if (!foundAny) {
     console.log(chalk.yellow("No worktrees found."));
-  } else if (worktrees.length === 0) {
+  } else if (!matchedAny) {
     console.log(chalk.yellow("No worktrees found matching the criteria."));
   }
 }
