@@ -99,15 +99,20 @@ export function formatCreatedTime(date: Date): string {
 
   if (hours < 1) {
     const minutes = Math.floor(diffMs / (1000 * 60));
-    return `${minutes} minutes ago`;
+    const unit = minutes === 1 ? "minute" : "minutes";
+    return `${minutes} ${unit} ago`;
   } else if (hours < 24) {
-    return `${Math.floor(hours)} hours ago`;
+    const count = Math.floor(hours);
+    const unit = count === 1 ? "hour" : "hours";
+    return `${count} ${unit} ago`;
   } else if (hours < 24 * 7) {
     const days = Math.floor(hours / 24);
-    return `${days} days ago`;
+    const unit = days === 1 ? "day" : "days";
+    return `${days} ${unit} ago`;
   } else if (hours < 24 * 30) {
     const weeks = Math.floor(hours / (24 * 7));
-    return `${weeks} weeks ago`;
+    const unit = weeks === 1 ? "week" : "weeks";
+    return `${weeks} ${unit} ago`;
   } else {
     return date.toISOString().split("T")[0]; // YYYY-MM-DD format
   }

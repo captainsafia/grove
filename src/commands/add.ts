@@ -33,6 +33,10 @@ export function createAddCommand(): Command {
 }
 
 async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
+  if (!name || !name.trim()) {
+    throw new Error('Branch name is required');
+  }
+
   const manager = new WorktreeManager();
   await manager.initialize();
 
