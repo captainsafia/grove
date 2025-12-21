@@ -67,21 +67,14 @@ async function runInit(gitUrl: string): Promise<void> {
   }
 
   try {
-    console.log(chalk.blue(`Cloning ${gitUrl} into ${bareRepoDir}...`));
-
     const manager = new WorktreeManager();
     await manager.cloneBareRepository(gitUrl, bareRepoDir);
 
     console.log(
-      chalk.green("✓ Successfully initialized worktree setup in"),
+      chalk.green("✓ Initialized worktree setup:"),
       chalk.bold(repoName),
     );
     console.log(chalk.gray("  Bare repository:"), bareRepoDir);
-    console.log();
-    console.log(chalk.yellow("Next steps:"));
-    console.log(chalk.gray(`  cd ${repoName}`));
-    console.log(chalk.gray("  grove add main"));
-    console.log(chalk.gray("  grove add feature/new-feature"));
   } catch (error) {
     // Clean up on failure - only remove if we created the directory
     if (createdDir) {

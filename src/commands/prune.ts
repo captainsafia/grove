@@ -75,18 +75,7 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
   const worktrees = await manager.listWorktrees();
   const candidatesForPruning: Worktree[] = [];
 
-  if (options.olderThan) {
-    console.log(
-      chalk.blue(`Checking for worktrees older than ${options.olderThan}...`),
-    );
-  } else {
-    console.log(
-      chalk.blue(
-        `Checking for worktrees with branches merged into '${options.base}'...`,
-      ),
-    );
-  }
-  console.log();
+
 
   for (const wt of worktrees) {
     if (wt.isMain || wt.isLocked) {

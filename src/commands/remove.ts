@@ -79,14 +79,7 @@ async function runRemove(
     console.log();
   }
 
-  // Show worktree info
-  console.log(chalk.blue("Worktree to remove:"));
-  console.log(chalk.gray("  Path:"), worktree.path);
-  console.log(chalk.gray("  Branch:"), worktree.branch);
-  if (worktree.isDirty) {
-    console.log(chalk.yellow("  Status: dirty (uncommitted changes)"));
-  }
-  console.log();
+
 
   // Confirm removal
   if (!options.yes) {

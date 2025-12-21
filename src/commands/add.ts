@@ -40,16 +40,14 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
   // Convert branch name like "feature/my-feature" to a path like "../feature/my-feature"
   const worktreePath = getWorktreePath(name);
 
-  console.log(chalk.blue(`Creating worktree for '${name}'...`));
-
   // Try to create worktree for existing branch first, fall back to creating new branch
   // This handles the race condition atomically - git will fail if branch doesn't exist
+  let isNewBranch = false;
   try {
     await manager.addWorktree(worktreePath, name, {
       createBranch: false,
       track: options.track,
     });
-    console.log(chalk.green("✓ Created worktree:"), chalk.bold(name));
   } catch (existingBranchError) {
     // Branch doesn't exist, try creating new branch and worktree
     try {
@@ -57,10 +55,7 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
         createBranch: true,
         track: options.track,
       });
-      console.log(
-        chalk.green("✓ Created new branch and worktree:"),
-        chalk.bold(name),
-      );
+      isNewBranch = true;
     } catch (newBranchError) {
       // If both fail, provide a helpful error message
       const errorMessage = newBranchError instanceof Error ? newBranchError.message : String(newBranchError);
@@ -68,10 +63,12 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
     }
   }
 
+  if (isNewBranch) {
+    console.log(chalk.green("✓ Created new branch and worktree:"), chalk.bold(name));
+  } else {
+    console.log(chalk.green("✓ Created worktree:"), chalk.bold(name));
+  }
   console.log(chalk.gray("  Path:"), worktreePath);
-  console.log();
-  console.log(chalk.yellow("To switch to this worktree:"));
-  console.log(chalk.gray(`  cd ${worktreePath}`));
 }
 
 function getWorktreePath(branchName: string): string {

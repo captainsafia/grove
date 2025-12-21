@@ -31,9 +31,6 @@ async function runSelfUpdate(
   version: string | undefined,
   options: SelfUpdateCommandOptions | undefined,
 ): Promise<void> {
-  console.log(chalk.blue("🌳 Grove Self-Update"));
-  console.log();
-
   // Check if both version and PR are specified
   if (version && options?.pr) {
     throw new Error("Cannot specify both version and --pr option");
@@ -54,21 +51,14 @@ async function runSelfUpdate(
   let installCommand: string;
 
   if (options?.pr) {
-    console.log(chalk.yellow(`Updating to PR #${options.pr}...`));
     installCommand = `curl -fsSL ${installScriptUrl} | sh -s -- --pr ${options.pr}`;
   } else if (version) {
     // Ensure version starts with 'v'
     const versionTag = version.startsWith("v") ? version : `v${version}`;
-    console.log(chalk.yellow(`Updating to version ${versionTag}...`));
     installCommand = `curl -fsSL ${installScriptUrl} | sh -s -- ${versionTag}`;
   } else {
-    console.log(chalk.yellow("Updating to latest version..."));
     installCommand = `curl -fsSL ${installScriptUrl} | sh`;
   }
-
-  console.log();
-  console.log(chalk.dim("Running:"), chalk.dim(installCommand));
-  console.log();
 
   // Execute the install command
   const proc = Bun.spawn(["sh", "-c", installCommand], {
@@ -84,14 +74,5 @@ async function runSelfUpdate(
   }
 
   console.log();
-  console.log(chalk.green("✅ Update completed successfully!"));
-  console.log();
-  console.log(
-    chalk.dim("Note: If you installed grove using a different method,"),
-  );
-  console.log(
-    chalk.dim(
-      "you may need to restart your shell for changes to take effect.",
-    ),
-  );
+  console.log(chalk.green("✓ Update completed successfully"));
 }

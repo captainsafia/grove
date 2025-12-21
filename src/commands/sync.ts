@@ -37,9 +37,7 @@ async function runSync(options: SyncCommandOptions): Promise<void> {
   // Determine the branch to sync
   const branch = options.branch || (await manager.getDefaultBranch());
 
-  console.log(chalk.blue(`Syncing '${branch}' from origin...`));
-
   await manager.syncBranch(branch);
 
-  console.log(chalk.green("✓ Successfully synced"), chalk.bold(branch));
+  console.log(chalk.green("✓ Synced"), chalk.bold(branch), chalk.gray("from origin"));
 }
