@@ -75,6 +75,10 @@ async function runInit(gitUrl: string): Promise<void> {
       chalk.bold(repoName),
     );
     console.log(chalk.gray("  Bare repository:"), bareRepoDir);
+    console.log();
+    console.log(chalk.bold("Next steps:"));
+    console.log(chalk.gray("  cd"), bareRepoDir);
+    console.log(chalk.gray("  grove add main"));
   } catch (error) {
     // Clean up on failure - only remove if we created the directory
     if (createdDir) {
