@@ -33,6 +33,16 @@ export function createListCommand(): Command {
   return command;
 }
 
+function shouldIncludeWorktree(worktree: Worktree, options: WorktreeListOptions): boolean {
+  if (options.dirty && !worktree.isDirty) {
+    return false;
+  }
+  if (options.locked && !worktree.isLocked) {
+    return false;
+  }
+  return true;
+}
+
 async function runList(options: ListCommandOptions): Promise<void> {
   const manager = new WorktreeManager();
   await manager.initialize();
@@ -47,11 +57,7 @@ async function runList(options: ListCommandOptions): Promise<void> {
     for await (const worktree of manager.streamWorktrees()) {
       foundAny = true;
 
-      // Apply filters
-      if (options.dirty && !worktree.isDirty) {
-        continue;
-      }
-      if (options.locked && !worktree.isLocked) {
+      if (!shouldIncludeWorktree(worktree, options)) {
         continue;
       }
 
@@ -83,11 +89,7 @@ async function runList(options: ListCommandOptions): Promise<void> {
   for await (const worktree of manager.streamWorktrees()) {
     foundAny = true;
 
-    // Apply filters
-    if (options.dirty && !worktree.isDirty) {
-      continue;
-    }
-    if (options.locked && !worktree.isLocked) {
+    if (!shouldIncludeWorktree(worktree, options)) {
       continue;
     }
 
