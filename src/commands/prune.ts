@@ -209,7 +209,7 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
   if (worktreesToRemove.length === 0) {
     console.log(chalk.yellow("No worktrees to remove (all candidates have uncommitted changes)."));
     console.log(chalk.yellow("Use --force to remove them anyway."));
-    return;
+    process.exit(1);
   }
 
   console.log(chalk.blue("\nRemoving worktrees..."));
