@@ -5,12 +5,11 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  build-pr:
+  build-linux:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      actions: write
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      pr_number: ${{ steps.version.outputs.PR_NUMBER }}
 
     steps:
       - name: Checkout repository
@@ -43,29 +42,151 @@ jobs:
       - name: Build for Linux ARM64
         run: bun build --compile --minify --sourcemap --target=bun-linux-arm64 ./src/index.ts --outfile grove-linux-arm64
 
+      - name: Upload Linux executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: grove-linux-executables
+          path: |
+            grove-linux-x64
+            grove-linux-arm64
+          retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    needs: build-linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Update package.json version
+        run: npm version ${{ needs.build-linux.outputs.version }} --no-git-tag-version --allow-same-version
+
       - name: Build for macOS x64
         run: bun build --compile --minify --sourcemap --target=bun-darwin-x64 ./src/index.ts --outfile grove-darwin-x64
 
       - name: Build for macOS ARM64
         run: bun build --compile --minify --sourcemap --target=bun-darwin-arm64 ./src/index.ts --outfile grove-darwin-arm64
 
-      - name: Upload PR executables
+      - name: Import Code Signing Certificate
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_P12_PASSWORD: ${{ secrets.MACOS_CERT_P12_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Decode the certificate
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+
+          # Create and configure keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate
+          security import $RUNNER_TEMP/certificate.p12 -P "$MACOS_CERT_P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Clean up certificate file
+          rm $RUNNER_TEMP/certificate.p12
+
+      - name: Sign macOS Binaries
+        run: |
+          # Find the signing identity
+          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          echo "Signing with identity: $IDENTITY"
+
+          # Sign both binaries
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" grove-darwin-x64
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" grove-darwin-arm64
+
+          # Verify signatures
+          codesign --verify --verbose grove-darwin-x64
+          codesign --verify --verbose grove-darwin-arm64
+
+      - name: Notarize macOS Binaries
+        env:
+          APPLE_ID_EMAIL: ${{ secrets.APPLE_ID_EMAIL }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          # Create zip files for notarization
+          zip grove-darwin-x64.zip grove-darwin-x64
+          zip grove-darwin-arm64.zip grove-darwin-arm64
+
+          # Get team ID from signing identity
+          TEAM_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed -n 's/.*(\([A-Z0-9]*\)).*/\1/p')
+
+          # Notarize x64 binary
+          xcrun notarytool submit grove-darwin-x64.zip \
+            --apple-id "$APPLE_ID_EMAIL" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          # Notarize ARM64 binary
+          xcrun notarytool submit grove-darwin-arm64.zip \
+            --apple-id "$APPLE_ID_EMAIL" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          # Clean up zip files
+          rm grove-darwin-x64.zip grove-darwin-arm64.zip
+
+      - name: Upload macOS executables
         uses: actions/upload-artifact@v4
         with:
-          name: grove-pr-${{ steps.version.outputs.PR_NUMBER }}-${{ steps.version.outputs.VERSION }}
+          name: grove-macos-executables
           path: |
-            grove-linux-x64
-            grove-linux-arm64
             grove-darwin-x64
             grove-darwin-arm64
+          retention-days: 30
+
+  publish-pr:
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-macos]
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: write
+
+    steps:
+      - name: Download Linux executables
+        uses: actions/download-artifact@v4
+        with:
+          name: grove-linux-executables
+          path: ./executables
+
+      - name: Download macOS executables
+        uses: actions/download-artifact@v4
+        with:
+          name: grove-macos-executables
+          path: ./executables
+
+      - name: Upload combined PR executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: grove-pr-${{ needs.build-linux.outputs.pr_number }}-${{ needs.build-linux.outputs.version }}
+          path: ./executables
           retention-days: 30
 
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = context.payload.pull_request.number;
-            const version = '${{ steps.version.outputs.VERSION }}';
+            const prNumber = ${{ needs.build-linux.outputs.pr_number }};
+            const version = '${{ needs.build-linux.outputs.version }}';
             const runId = context.runId;
             const body = `🌳 **Grove PR Build Ready!**
 
