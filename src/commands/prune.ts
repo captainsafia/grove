@@ -3,7 +3,7 @@ import chalk from "chalk";
 import confirm from "@inquirer/confirm";
 import { WorktreeManager, DETACHED_HEAD } from "../git/WorktreeManager";
 import { Worktree, PruneOptions } from "../models";
-import { parseDuration } from "../utils";
+import { parseDuration, handleCommandError } from "../utils";
 
 interface PruneCommandOptions {
   dryRun: boolean;
@@ -39,11 +39,7 @@ export function createPruneCommand(): Command {
       try {
         await runPrune(options);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
@@ -66,8 +62,8 @@ async function runPrune(options: PruneCommandOptions): Promise<void> {
     cutoffTime = new Date(Date.now() - ageThresholdMs);
   }
 
-  const manager = new WorktreeManager();
-  await manager.initialize();
+  // Use discovery to find the bare clone from anywhere in the project hierarchy
+  const manager = await WorktreeManager.discover();
 
   // Get the base branch (use default if not specified and not using --older-than)
   let baseBranch = options.base;
