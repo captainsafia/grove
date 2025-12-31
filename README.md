@@ -11,6 +11,8 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 - Initialize repos with a bare clone optimized for worktrees
 - Create, list, and remove worktrees
 - Sync with origin and prune stale worktrees
+- Run commands from anywhere within the project hierarchy
+- Shell integration for seamless directory navigation
 - Self-update to the latest version or PR build
 
 ## Installation
@@ -108,6 +110,50 @@ grove go my-feature
 ```
 
 The `GROVE_WORKTREE` environment variable is set to the branch name while in the worktree shell.
+
+#### Shell Integration
+
+For a smoother experience, you can set up shell integration so `grove go` changes your current directory instead of spawning a new shell:
+
+**Bash:**
+```bash
+echo 'eval "$(grove shell-init bash)"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Zsh:**
+```bash
+echo 'eval "$(grove shell-init zsh)"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Fish:**
+```bash
+echo 'eval "$(grove shell-init fish)"' >> ~/.config/fish/config.fish
+source ~/.config/fish/config.fish
+```
+
+With shell integration enabled, `grove go feature-branch` will directly change your working directory.
+
+### Run Commands from Anywhere
+
+Grove commands work from anywhere within your project hierarchy - you don't need to be in the bare clone directory. Whether you're deep inside a worktree's source code or at the project root, grove automatically discovers the repository:
+
+```bash
+# Works from inside a worktree
+cd ~/projects/myproject/feature-branch/src/components
+grove list  # Discovers and lists all worktrees
+
+# Works from the worktree root
+cd ~/projects/myproject/feature-branch
+grove add another-feature
+
+# Works from the bare clone
+cd ~/projects/myproject/myproject.git
+grove sync
+```
+
+Grove caches the discovered repository path in the `GROVE_REPO` environment variable for faster subsequent commands.
 
 ### List all worktrees
 
@@ -225,6 +271,7 @@ grove self-update --pr 42
 - `grove list [options]` - List all worktrees
 - `grove sync [options]` - Sync the bare clone with origin
 - `grove prune [options]` - Remove worktrees for merged branches
+- `grove shell-init <shell>` - Output shell integration function (bash, zsh, or fish)
 - `grove self-update [version] [options]` - Update grove to a specific version or PR
 - `grove version` - Show version information
 - `grove help [command]` - Show help

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
+import { handleCommandError } from "../utils";
 
 interface SyncCommandOptions {
   branch?: string;
@@ -19,11 +20,7 @@ export function createSyncCommand(): Command {
       try {
         await runSync(options);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
@@ -31,8 +28,8 @@ export function createSyncCommand(): Command {
 }
 
 async function runSync(options: SyncCommandOptions): Promise<void> {
-  const manager = new WorktreeManager();
-  await manager.initialize();
+  // Use discovery to find the bare clone from anywhere in the project hierarchy
+  const manager = await WorktreeManager.discover();
 
   // Determine the branch to sync
   const branch = options.branch || (await manager.getDefaultBranch());

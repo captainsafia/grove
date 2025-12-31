@@ -2,6 +2,7 @@ import { Command } from "commander";
 import * as path from "path";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
+import { handleCommandError } from "../utils";
 
 interface AddCommandOptions {
   track?: string;
@@ -21,11 +22,7 @@ export function createAddCommand(): Command {
       try {
         await runAdd(name, options);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
@@ -37,12 +34,15 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
     throw new Error('Branch name is required');
   }
 
-  const manager = new WorktreeManager();
-  await manager.initialize();
+  // Use discovery to find the bare clone from anywhere in the project hierarchy
+  const manager = await WorktreeManager.discover();
+
+  // Get the project root (parent of bare clone) for worktree path calculation
+  const projectRoot = manager.getProjectRoot();
 
   // Determine the worktree path based on the branch name
   // Convert branch name like "feature/my-feature" to a path like "../feature/my-feature"
-  const worktreePath = getWorktreePath(name);
+  const worktreePath = getWorktreePath(name, projectRoot);
 
   // Try to create worktree for existing branch first, fall back to creating new branch
   // This handles the race condition atomically - git will fail if branch doesn't exist
@@ -80,7 +80,7 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
   console.log(chalk.gray("  Path:"), worktreePath);
 }
 
-function getWorktreePath(branchName: string): string {
+function getWorktreePath(branchName: string, projectRoot: string): string {
   // Validate branch name doesn't contain path traversal
   if (branchName.includes('..') || path.isAbsolute(branchName)) {
     throw new Error('Invalid branch name: contains path traversal characters');
@@ -89,19 +89,16 @@ function getWorktreePath(branchName: string): string {
   // Sanitize special characters that could cause issues on various filesystems
   const sanitizedName = branchName.replace(/[<>:"|?*]/g, '-');
 
-  // Get the current working directory
-  const cwd = process.cwd();
-  const parentDir = path.dirname(cwd);
-
   // Use the branch name as the directory name
   // Replace slashes with the OS path separator for nested branches
   const dirName = sanitizedName.replace(/\//g, path.sep);
 
-  const worktreePath = path.join(parentDir, dirName);
+  const worktreePath = path.join(projectRoot, dirName);
 
-  // Ensure the resolved path is within the parent directory
+  // Ensure the resolved path is within the project root (strict enforcement)
   const resolvedPath = path.resolve(worktreePath);
-  if (!resolvedPath.startsWith(path.resolve(parentDir) + path.sep) && resolvedPath !== path.resolve(parentDir)) {
+  const resolvedProjectRoot = path.resolve(projectRoot);
+  if (!resolvedPath.startsWith(resolvedProjectRoot + path.sep) && resolvedPath !== resolvedProjectRoot) {
     throw new Error('Invalid branch name: would create worktree outside project');
   }
 

@@ -2,6 +2,7 @@ import { SimpleGit, simpleGit } from "simple-git";
 import * as fs from "fs";
 import * as path from "path";
 import { Worktree, PruneOptions } from "../models";
+import { discoverBareClone, getProjectRoot } from "../utils";
 
 // Constants
 const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds for standard operations
@@ -13,6 +14,7 @@ export class WorktreeManager {
   private git: SimpleGit;
   private repoPath: string;
   private isBare: boolean;
+  private projectRoot: string | null = null;
 
   constructor(repoPath?: string, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
     this.repoPath = repoPath || process.cwd();
@@ -21,6 +23,58 @@ export class WorktreeManager {
       timeout: { block: timeoutMs },
     });
     this.isBare = false;
+  }
+
+  /**
+   * Static factory method that discovers the grove repository from the current
+   * working directory and returns an initialized WorktreeManager.
+   *
+   * This method:
+   * 1. Uses the discovery algorithm to find the bare clone
+   * 2. Creates a WorktreeManager pointing to the bare clone
+   * 3. Initializes it
+   * 4. Optionally sets the GROVE_REPO environment variable for caching
+   *
+   * @param options.timeoutMs - Timeout for git operations (default: 30000ms)
+   * @param options.cache - Whether to cache the path in GROVE_REPO env var (default: true)
+   * @returns An initialized WorktreeManager for the discovered repository
+   * @throws GroveDiscoveryError if no grove repository is found
+   */
+  static async discover(options: { timeoutMs?: number; cache?: boolean } = {}): Promise<WorktreeManager> {
+    const { timeoutMs = DEFAULT_TIMEOUT_MS, cache = true } = options;
+
+    const bareClonePath = await discoverBareClone();
+    const manager = new WorktreeManager(bareClonePath, timeoutMs);
+    await manager.initialize();
+
+    // Cache the discovered path for subsequent commands (opt-in, default true)
+    if (cache) {
+      process.env.GROVE_REPO = bareClonePath;
+    }
+
+    // Store the project root for worktree path calculation
+    manager.projectRoot = getProjectRoot(bareClonePath);
+
+    return manager;
+  }
+
+  /**
+   * Get the project root directory (parent of the bare clone).
+   * Only available after using discover().
+   */
+  getProjectRoot(): string {
+    if (this.projectRoot) {
+      return this.projectRoot;
+    }
+    // Fallback: calculate from repoPath
+    return path.dirname(this.repoPath);
+  }
+
+  /**
+   * Get the bare clone repository path.
+   */
+  getRepoPath(): string {
+    return this.repoPath;
   }
 
   async initialize(): Promise<void> {

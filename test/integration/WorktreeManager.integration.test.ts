@@ -343,6 +343,183 @@ describe("WorktreeManager Integration Tests", () => {
   });
 });
 
+describe("Grove Anywhere - Discovery Integration Tests", () => {
+  let tempDir: string;
+  let bareRepoPath: string;
+  let projectRoot: string;
+
+  beforeEach(async () => {
+    // Create a unique temp directory for each test
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "grove-anywhere-test-"));
+    projectRoot = path.join(tempDir, "myproject");
+    bareRepoPath = path.join(projectRoot, "myproject.git");
+
+    // Create the grove structure: projectRoot/repo.git
+    fs.mkdirSync(projectRoot, { recursive: true });
+
+    // Create a bare repository
+    await $`git init --bare ${bareRepoPath}`.quiet();
+
+    // We need to create an initial commit in the bare repo for worktrees to work
+    // Create a temp normal repo, make a commit, push to bare
+    const tempNormalRepo = path.join(tempDir, "temp-init");
+    fs.mkdirSync(tempNormalRepo);
+    await $`git -C ${tempNormalRepo} init`.quiet();
+    await $`git -C ${tempNormalRepo} config user.email test@example.com`.quiet();
+    await $`git -C ${tempNormalRepo} config user.name "Test User"`.quiet();
+    fs.writeFileSync(path.join(tempNormalRepo, "README.md"), "# Test\n");
+    await $`git -C ${tempNormalRepo} add README.md`.quiet();
+    await $`git -C ${tempNormalRepo} commit -m "Initial commit"`.quiet();
+    await $`git -C ${tempNormalRepo} remote add origin ${bareRepoPath}`.quiet();
+    await $`git -C ${tempNormalRepo} push origin HEAD:main`.quiet();
+    fs.rmSync(tempNormalRepo, { recursive: true, force: true });
+
+    // Configure fetch refspec on bare repo
+    await $`git -C ${bareRepoPath} config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"`.quiet();
+  });
+
+  afterEach(() => {
+    try {
+      // Clear GROVE_REPO env var between tests
+      delete process.env.GROVE_REPO;
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch (error) {
+      console.warn(`Warning: Could not clean up temp directory: ${error}`);
+    }
+  });
+
+  test("should discover bare clone from worktree root", async () => {
+    // Create a worktree
+    const worktreePath = path.join(projectRoot, "main");
+    await $`git -C ${bareRepoPath} worktree add ${worktreePath} main`.quiet();
+
+    // Clear any cached GROVE_REPO
+    delete process.env.GROVE_REPO;
+
+    // Change to worktree and discover
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(worktreePath);
+      const manager = await WorktreeManager.discover({ cache: false });
+      expect(manager.getRepoPath()).toBe(bareRepoPath);
+      expect(manager.getProjectRoot()).toBe(projectRoot);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test("should discover bare clone from nested directory within worktree", async () => {
+    // Create a worktree
+    const worktreePath = path.join(projectRoot, "main");
+    await $`git -C ${bareRepoPath} worktree add ${worktreePath} main`.quiet();
+
+    // Create nested directories
+    const nestedPath = path.join(worktreePath, "src", "components");
+    fs.mkdirSync(nestedPath, { recursive: true });
+
+    // Clear any cached GROVE_REPO
+    delete process.env.GROVE_REPO;
+
+    // Change to nested directory and discover
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(nestedPath);
+      const manager = await WorktreeManager.discover({ cache: false });
+      expect(manager.getRepoPath()).toBe(bareRepoPath);
+      expect(manager.getProjectRoot()).toBe(projectRoot);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test("should discover bare clone from bare repo directory itself", async () => {
+    // Clear any cached GROVE_REPO
+    delete process.env.GROVE_REPO;
+
+    // Change to bare repo and discover
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(bareRepoPath);
+      const manager = await WorktreeManager.discover({ cache: false });
+      expect(manager.getRepoPath()).toBe(bareRepoPath);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test("should cache discovered path in GROVE_REPO when cache=true", async () => {
+    // Create a worktree
+    const worktreePath = path.join(projectRoot, "main");
+    await $`git -C ${bareRepoPath} worktree add ${worktreePath} main`.quiet();
+
+    // Clear any cached GROVE_REPO
+    delete process.env.GROVE_REPO;
+
+    // Change to worktree and discover with caching
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(worktreePath);
+      await WorktreeManager.discover({ cache: true });
+      expect(process.env.GROVE_REPO).toBe(bareRepoPath);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test("should not cache discovered path when cache=false", async () => {
+    // Create a worktree
+    const worktreePath = path.join(projectRoot, "main");
+    await $`git -C ${bareRepoPath} worktree add ${worktreePath} main`.quiet();
+
+    // Clear any cached GROVE_REPO
+    delete process.env.GROVE_REPO;
+
+    // Change to worktree and discover without caching
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(worktreePath);
+      await WorktreeManager.discover({ cache: false });
+      expect(process.env.GROVE_REPO).toBeUndefined();
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test("should use GROVE_REPO env var if set and valid", async () => {
+    // Set GROVE_REPO to the bare repo path
+    process.env.GROVE_REPO = bareRepoPath;
+
+    // Discovery should use the env var even from a different directory
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(tempDir); // Different directory
+      const manager = await WorktreeManager.discover({ cache: false });
+      expect(manager.getRepoPath()).toBe(bareRepoPath);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test("should ignore invalid GROVE_REPO and rediscover", async () => {
+    // Create a worktree
+    const worktreePath = path.join(projectRoot, "main");
+    await $`git -C ${bareRepoPath} worktree add ${worktreePath} main`.quiet();
+
+    // Set GROVE_REPO to an invalid path
+    process.env.GROVE_REPO = "/nonexistent/path";
+
+    // Change to worktree - should ignore invalid env and discover correctly
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(worktreePath);
+      const manager = await WorktreeManager.discover({ cache: false });
+      expect(manager.getRepoPath()).toBe(bareRepoPath);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+});
+
 describe("Bare Repository Integration Tests", () => {
   let tempDir: string;
 

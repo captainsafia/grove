@@ -2,6 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import confirm from "@inquirer/confirm";
 import { WorktreeManager } from "../git/WorktreeManager";
+import { handleCommandError } from "../utils";
 
 interface RemoveCommandOptions {
   force: boolean;
@@ -25,11 +26,7 @@ export function createRemoveCommand(): Command {
       try {
         await runRemove(name, options);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
@@ -44,8 +41,8 @@ async function runRemove(
     throw new Error('Branch name is required');
   }
 
-  const manager = new WorktreeManager();
-  await manager.initialize();
+  // Use discovery to find the bare clone from anywhere in the project hierarchy
+  const manager = await WorktreeManager.discover();
 
   // Find the worktree by branch name or path
   const worktrees = await manager.listWorktrees();

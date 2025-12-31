@@ -6,6 +6,9 @@ import {
   formatCreatedTime,
   formatPathWithTilde,
   isValidGitUrl,
+  extractBareCloneFromGitdir,
+  getProjectRoot,
+  GroveDiscoveryError,
 } from "../../src/utils/index";
 
 describe("extractRepoName", () => {
@@ -476,5 +479,93 @@ describe("formatPathWithTilde", () => {
     const result = formatPathWithTilde(`${home}2/projects`);
     // Should not replace since it's not followed by a path separator
     expect(result).toBe(`${home}2/projects`);
+  });
+});
+
+describe("extractBareCloneFromGitdir", () => {
+  describe("Unix paths", () => {
+    test("should extract bare clone path from simple worktree gitdir", () => {
+      const gitdir = "/home/user/projects/myproject/myproject.git/worktrees/main";
+      expect(extractBareCloneFromGitdir(gitdir)).toBe(
+        "/home/user/projects/myproject/myproject.git"
+      );
+    });
+
+    test("should extract bare clone path from nested branch worktree", () => {
+      const gitdir = "/home/user/projects/myproject/myproject.git/worktrees/feature/my-feature";
+      expect(extractBareCloneFromGitdir(gitdir)).toBe(
+        "/home/user/projects/myproject/myproject.git"
+      );
+    });
+
+    test("should handle worktree with deep nesting", () => {
+      const gitdir = "/a/b/c/repo.git/worktrees/feature/sub/deep";
+      expect(extractBareCloneFromGitdir(gitdir)).toBe("/a/b/c/repo.git");
+    });
+
+    test("should handle branch name containing 'worktrees'", () => {
+      // Edge case: branch name like "fix/worktrees/bug" contains the word "worktrees"
+      // The function uses lastIndexOf so it finds the git-internal /worktrees/ segment
+      const gitdir = "/home/user/repo.git/worktrees/fix/worktrees/bug";
+      expect(extractBareCloneFromGitdir(gitdir)).toBe("/home/user/repo.git");
+    });
+  });
+
+  describe("Error cases", () => {
+    test("should throw for path without /worktrees/", () => {
+      expect(() => extractBareCloneFromGitdir("/home/user/repo.git")).toThrow(
+        "Invalid worktree gitdir path"
+      );
+    });
+
+    test("should throw for path with worktrees but no trailing segment", () => {
+      expect(() => extractBareCloneFromGitdir("/home/user/worktrees")).toThrow(
+        "Invalid worktree gitdir path"
+      );
+    });
+
+    test("should throw for empty string", () => {
+      expect(() => extractBareCloneFromGitdir("")).toThrow(
+        "Invalid worktree gitdir path"
+      );
+    });
+  });
+});
+
+describe("getProjectRoot", () => {
+  test("should return parent directory of bare clone", () => {
+    const bareClonePath = "/home/user/projects/myproject/myproject.git";
+    expect(getProjectRoot(bareClonePath)).toBe("/home/user/projects/myproject");
+  });
+
+  test("should handle bare clone at root level", () => {
+    const bareClonePath = "/myproject.git";
+    expect(getProjectRoot(bareClonePath)).toBe("/");
+  });
+
+  test("should handle nested paths", () => {
+    const bareClonePath = "/a/b/c/d/repo.git";
+    expect(getProjectRoot(bareClonePath)).toBe("/a/b/c/d");
+  });
+});
+
+describe("GroveDiscoveryError", () => {
+  test("should create error with message", () => {
+    const error = new GroveDiscoveryError("Not in a grove repository");
+    expect(error.message).toBe("Not in a grove repository");
+    expect(error.name).toBe("GroveDiscoveryError");
+    expect(error.isRegularGitRepo).toBe(false);
+  });
+
+  test("should create error with isRegularGitRepo flag", () => {
+    const error = new GroveDiscoveryError("Not a grove repo", true);
+    expect(error.message).toBe("Not a grove repo");
+    expect(error.isRegularGitRepo).toBe(true);
+  });
+
+  test("should be instanceof Error", () => {
+    const error = new GroveDiscoveryError("test");
+    expect(error instanceof Error).toBe(true);
+    expect(error instanceof GroveDiscoveryError).toBe(true);
   });
 });

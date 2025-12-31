@@ -2,6 +2,12 @@ import { Command } from "commander";
 import { spawn } from "child_process";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
+import { getShellSetupInstructions, markShellTipShown, shouldShowShellTip } from "./shell-init";
+import { handleCommandError } from "../utils";
+
+interface GoCommandOptions {
+  pathOnly: boolean;
+}
 
 export function createGoCommand(): Command {
   const command = new Command("go");
@@ -9,28 +15,25 @@ export function createGoCommand(): Command {
   command
     .description("Navigate to a worktree by branch name")
     .argument("<name>", "Branch name or worktree name to navigate to")
-    .action(async (name: string) => {
+    .option("-p, --path-only", "Output path only (used by shell integration)", false)
+    .action(async (name: string, options: GoCommandOptions) => {
       try {
-        await runGo(name);
+        await runGo(name, options);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
   return command;
 }
 
-async function runGo(name: string): Promise<void> {
+async function runGo(name: string, options: GoCommandOptions): Promise<void> {
   if (!name || !name.trim()) {
     throw new Error('Branch name is required');
   }
 
-  const manager = new WorktreeManager();
-  await manager.initialize();
+  // Use discovery to find the bare clone from anywhere in the project hierarchy
+  const manager = await WorktreeManager.discover();
 
   const worktree = await manager.findWorktreeByName(name);
 
@@ -38,10 +41,29 @@ async function runGo(name: string): Promise<void> {
     throw new Error(`Worktree '${name}' not found. Use 'grove list' to see available worktrees.`);
   }
 
+  // If path-only mode, just output the path (for shell integration to use)
+  if (options.pathOnly) {
+    console.log(worktree.path);
+    return;
+  }
+
+  // Normal mode: spawn an interactive shell
   // Get the user's default shell
   const shell = process.env.SHELL || "/bin/sh";
 
   console.log(chalk.green("✓ Entering worktree:"), chalk.bold(worktree.branch));
+  console.log(chalk.gray("  Path:"), worktree.path);
+
+  // Show shell integration tip on first use only (when not using shell integration)
+  if (await shouldShowShellTip()) {
+    const setupInfo = getShellSetupInstructions();
+    if (setupInfo) {
+      console.log(setupInfo.instructions);
+      await markShellTipShown();
+    }
+  }
+
+  console.log();
 
   // Spawn an interactive shell in the worktree directory
   const child = spawn(shell, [], {

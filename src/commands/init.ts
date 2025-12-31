@@ -3,7 +3,7 @@ import { access, mkdir, rm } from "fs/promises";
 import * as path from "path";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
-import { extractRepoName, isValidGitUrl } from "../utils";
+import { extractRepoName, isValidGitUrl, findGroveRepo, handleCommandError } from "../utils";
 
 export function createInitCommand(): Command {
   const command = new Command("init");
@@ -15,11 +15,7 @@ export function createInitCommand(): Command {
       try {
         await runInit(gitUrl);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
@@ -27,6 +23,16 @@ export function createInitCommand(): Command {
 }
 
 async function runInit(gitUrl: string): Promise<void> {
+  // Check if we're inside an existing grove repository (prevent nesting)
+  const existingGroveRepo = await findGroveRepo();
+  if (existingGroveRepo) {
+    throw new Error(
+      `Cannot initialize grove inside an existing grove repository.\n` +
+      `Detected grove repository at: ${existingGroveRepo}\n\n` +
+      `To create a new grove setup, run 'grove init' from outside this directory hierarchy.`
+    );
+  }
+
   // Validate git URL format
   if (!isValidGitUrl(gitUrl)) {
     throw new Error(

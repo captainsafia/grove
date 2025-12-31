@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { Worktree, WorktreeListOptions } from "../models";
-import { formatCreatedTime, formatPathWithTilde } from "../utils";
+import { formatCreatedTime, formatPathWithTilde, handleCommandError } from "../utils";
 
 interface ListCommandOptions extends WorktreeListOptions {
   json: boolean;
@@ -22,11 +22,7 @@ export function createListCommand(): Command {
       try {
         await runList(options);
       } catch (error) {
-        console.error(
-          chalk.red("Error:"),
-          error instanceof Error ? error.message : error,
-        );
-        process.exit(1);
+        handleCommandError(error);
       }
     });
 
@@ -44,8 +40,8 @@ function shouldIncludeWorktree(worktree: Worktree, options: WorktreeListOptions)
 }
 
 async function runList(options: ListCommandOptions): Promise<void> {
-  const manager = new WorktreeManager();
-  await manager.initialize();
+  // Use discovery to find the bare clone from anywhere in the project hierarchy
+  const manager = await WorktreeManager.discover();
 
   let foundAny = false;
   let matchedAny = false;
