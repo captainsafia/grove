@@ -648,8 +648,8 @@ export async function checkForUpdates(currentVersion: string): Promise<void> {
     const result = await notifier.checkVersion(currentVersion);
 
     if (result.updateAvailable && result.latestVersion) {
-      console.log();
-      console.log(
+      console.error();
+      console.error(
         chalk.yellow("Update available:"),
         chalk.dim(currentVersion),
         "→",
