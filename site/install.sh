@@ -368,16 +368,19 @@ main() {
     # Create install directory
     mkdir -p "$INSTALL_DIR"
 
-    # Download binary
+    # Download binary to temp file first (avoids "text file busy" if grove is running)
+    TEMP_FILE="${INSTALL_DIR}/${BINARY_NAME}.tmp.$$"
     echo "Downloading ${BINARY_FILE}..."
-    if ! curl -fsSL "$DOWNLOAD_URL" -o "${INSTALL_DIR}/${BINARY_NAME}"; then
+    if ! curl -fsSL "$DOWNLOAD_URL" -o "${TEMP_FILE}"; then
+        rm -f "${TEMP_FILE}"
         echo "Error: Failed to download ${BINARY_FILE}"
         echo "URL: ${DOWNLOAD_URL}"
         exit 1
     fi
 
-    # Make executable
-    chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+    # Make executable and atomically replace any existing binary
+    chmod +x "${TEMP_FILE}"
+    mv -f "${TEMP_FILE}" "${INSTALL_DIR}/${BINARY_NAME}"
 
     echo ""
     if [ -n "$PREVIEW_MODE" ]; then
