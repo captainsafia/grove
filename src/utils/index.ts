@@ -503,6 +503,22 @@ export async function discoverBareClone(startPath?: string): Promise<string> {
     return currentPath;
   }
 
+  // 2b. Check if current directory is the project root (contains a *.git bare clone)
+  // This handles the case where the user is in ~/projects/myproject/ which contains myproject.git/
+  try {
+    const entries = await fs.promises.readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.endsWith('.git')) {
+        const potentialBareClone = path.join(currentPath, entry.name);
+        if (await isBareRepoByStructure(potentialBareClone)) {
+          return potentialBareClone;
+        }
+      }
+    }
+  } catch {
+    // Ignore errors reading directory
+  }
+
   // 3 & 4. Traverse up looking for .git FILE (worktree indicator)
   const root = path.parse(currentPath).root;
   let searchPath = currentPath;

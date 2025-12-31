@@ -447,6 +447,25 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     }
   });
 
+  test("should discover bare clone from project root directory", async () => {
+    // This tests the case where user runs grove from ~/projects/myproject/
+    // which contains myproject.git/ as a child directory
+
+    // Clear any cached GROVE_REPO
+    delete process.env.GROVE_REPO;
+
+    // Change to project root (parent of bare clone) and discover
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(projectRoot);
+      const manager = await WorktreeManager.discover({ cache: false });
+      expect(manager.getRepoPath()).toBe(bareRepoPath);
+      expect(manager.getProjectRoot()).toBe(projectRoot);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
   test("should cache discovered path in GROVE_REPO when cache=true", async () => {
     // Create a worktree
     const worktreePath = path.join(projectRoot, "main");
