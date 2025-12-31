@@ -3,6 +3,7 @@ import * as fs from "fs";
 import { realpath, readFile, stat, writeFile, mkdir } from "fs/promises";
 import { simpleGit } from "simple-git";
 import chalk from "chalk";
+import { ReleaseNotifier } from "gh-release-update-notifier";
 
 // ============================================================================
 // Error Handling
@@ -616,4 +617,47 @@ export async function findGroveRepo(startPath?: string): Promise<string | null> 
  */
 export function getProjectRoot(bareClonePath: string): string {
   return path.dirname(bareClonePath);
+}
+
+// ============================================================================
+// Update Notifications
+// ============================================================================
+
+/**
+ * Get the path to the update cache file.
+ */
+function getUpdateCachePath(): string {
+  return path.join(getConfigDir(), "update-cache.json");
+}
+
+/**
+ * Check for available updates and notify the user if a newer version exists.
+ * This function is designed to run silently in the background and never
+ * interrupt CLI execution, even if errors occur.
+ *
+ * @param currentVersion - The current version of the CLI
+ */
+export async function checkForUpdates(currentVersion: string): Promise<void> {
+  try {
+    const notifier = new ReleaseNotifier({
+      repo: "captainsafia/grove",
+      checkInterval: 86400000, // Check once per day (24 hours)
+      cacheFilePath: getUpdateCachePath(),
+    });
+
+    const result = await notifier.checkVersion(currentVersion);
+
+    if (result.updateAvailable && result.latestVersion) {
+      console.log();
+      console.log(
+        chalk.yellow("Update available:"),
+        chalk.dim(currentVersion),
+        "→",
+        chalk.green(result.latestVersion),
+        chalk.dim(`(run grove self-update ${result.latestVersion})`)
+      );
+    }
+  } catch {
+    // Silently fail - don't block CLI execution for update checks
+  }
 }

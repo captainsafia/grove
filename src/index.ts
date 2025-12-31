@@ -11,6 +11,7 @@ import { createRemoveCommand } from './commands/remove';
 import { createSelfUpdateCommand } from './commands/self-update';
 import { createShellInitCommand } from './commands/shell-init';
 import { createSyncCommand } from './commands/sync';
+import { checkForUpdates } from './utils';
 
 // Read version from package.json at build time
 const packageJson = await import('../package.json');
@@ -52,9 +53,23 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Parse command line arguments
-program.parse();
+await program.parseAsync();
 
 // If no command is provided, show help
 if (!process.argv.slice(2).length) {
   program.outputHelp();
+}
+
+// Check for updates after command execution, but skip for certain commands/flags
+const args = process.argv.slice(2);
+const skipUpdateCheck =
+  args.includes('--version') ||
+  args.includes('-V') ||
+  args.includes('--help') ||
+  args.includes('-h') ||
+  args.includes('self-update') ||
+  args.length === 0;
+
+if (!skipUpdateCheck) {
+  await checkForUpdates(packageJson.version);
 }
