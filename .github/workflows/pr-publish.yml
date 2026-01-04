@@ -192,7 +192,12 @@ jobs:
 
             **Version:** \`${version}\`
 
-            **If you already have grove installed:**
+            **Install with:**
+            \`\`\`bash
+            curl -sSL https://i.captainsafia.sh/captainsafia/grove/pr/${prNumber} | sh
+            \`\`\`
+
+            **Or if you already have grove installed:**
             \`\`\`bash
             grove self-update --pr ${prNumber}
             \`\`\`

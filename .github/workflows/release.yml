@@ -205,7 +205,7 @@ jobs:
             ## Installation
 
             ```bash
-            curl -sSL https://i.captainsafia.sh/captainsafia/grove | bash
+            curl -sSL https://i.captainsafia.sh/captainsafia/grove | sh
             ```
 
             ## Manual Downloads
@@ -262,7 +262,7 @@ jobs:
             ## Installation
 
             ```bash
-            curl -sSL https://i.captainsafia.sh/captainsafia/grove | bash
+            curl -sSL https://i.captainsafia.sh/captainsafia/grove | sh
             ```
 
             ## Manual Downloads

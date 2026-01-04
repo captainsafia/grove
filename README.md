@@ -20,12 +20,18 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 ### Quick Install (Linux/macOS)
 
 ```bash
-curl -sSL https://i.captainsafia.sh/captainsafia/grove | bash
+curl -sSL https://i.captainsafia.sh/captainsafia/grove | sh
 ```
 
 This will download the appropriate binary for your system and install it to `~/.grove/bin`.
 
 **Note:** Grove currently supports Linux and macOS only. Windows support is not available.
+
+To install a specific version:
+
+```bash
+curl -sSL https://i.captainsafia.sh/captainsafia/grove/v1.0.0 | sh
+```
 
 ## Usage
 
