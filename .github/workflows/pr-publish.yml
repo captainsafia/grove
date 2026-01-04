@@ -28,7 +28,8 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           COMMIT_SHA=${GITHUB_SHA::7}
-          PR_VERSION="0.0.0-pr.${PR_NUMBER}.${COMMIT_SHA}"
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          PR_VERSION="${PACKAGE_VERSION}-pr.${PR_NUMBER}.${COMMIT_SHA}"
           echo "VERSION=$PR_VERSION" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "Generated PR version: ${PR_VERSION}"
