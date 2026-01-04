@@ -205,7 +205,7 @@ jobs:
             ## Installation
 
             ```bash
-            curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- v${{ needs.build-linux.outputs.version }}
+            curl -sSL https://i.captainsafia.sh/captainsafia/grove | bash
             ```
 
             ## Manual Downloads
@@ -262,7 +262,7 @@ jobs:
             ## Installation
 
             ```bash
-            curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- ${{ github.ref_name }}
+            curl -sSL https://i.captainsafia.sh/captainsafia/grove | bash
             ```
 
             ## Manual Downloads

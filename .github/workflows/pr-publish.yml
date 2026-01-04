@@ -192,12 +192,7 @@ jobs:
 
             **Version:** \`${version}\`
 
-            **Install with:**
-            \`\`\`bash
-            curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- --pr ${prNumber}
-            \`\`\`
-
-            **Or if you already have grove installed:**
+            **If you already have grove installed:**
             \`\`\`bash
             grove self-update --pr ${prNumber}
             \`\`\`
