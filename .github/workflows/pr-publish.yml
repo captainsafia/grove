@@ -28,7 +28,8 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           COMMIT_SHA=${GITHUB_SHA::7}
-          PR_VERSION="0.0.0-pr.${PR_NUMBER}.${COMMIT_SHA}"
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          PR_VERSION="${PACKAGE_VERSION}-pr.${PR_NUMBER}.${COMMIT_SHA}"
           echo "VERSION=$PR_VERSION" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "Generated PR version: ${PR_VERSION}"
@@ -49,7 +50,7 @@ jobs:
           path: |
             grove-linux-x64
             grove-linux-arm64
-          retention-days: 30
+          retention-days: 1
 
   build-macos:
     runs-on: macos-latest
@@ -151,7 +152,7 @@ jobs:
           path: |
             grove-darwin-x64
             grove-darwin-arm64
-          retention-days: 30
+          retention-days: 1
 
   publish-pr:
     runs-on: ubuntu-latest
@@ -181,6 +182,13 @@ jobs:
           path: ./executables
           retention-days: 30
 
+      - name: Delete intermediate artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            grove-linux-executables
+            grove-macos-executables
+
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
@@ -194,7 +202,7 @@ jobs:
 
             **Install with:**
             \`\`\`bash
-            curl -fsSL https://safia.rocks/grove/install.sh | sh -s -- --pr ${prNumber}
+            curl https://i.captainsafia.sh/captainsafia/grove/pr/${prNumber} | sh
             \`\`\`
 
             **Or if you already have grove installed:**

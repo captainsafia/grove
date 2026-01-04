@@ -46,23 +46,21 @@ async function runSelfUpdate(
     throw new Error("Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)");
   }
 
-  // Construct the install command using argument arrays
-  const installScriptUrl = "https://safia.rocks/grove/install.sh";
-  const curlArgs = ["curl", "-fsSL", installScriptUrl];
-  const shArgs = ["sh"];
+  // Construct the install command using the i.captainsafia.sh installer
+  const baseUrl = "https://i.captainsafia.sh/captainsafia/grove";
+  let installUrl = baseUrl;
 
-  // Build the command arguments based on options
+  // Build the URL based on options
   if (options?.pr) {
-    shArgs.push("-s", "--", "--pr", options.pr);
+    installUrl = `${baseUrl}/pr/${options.pr}`;
   } else if (version) {
     // Ensure version starts with 'v'
     const versionTag = version.startsWith("v") ? version : `v${version}`;
-    shArgs.push("-s", "--", versionTag);
+    installUrl = `${baseUrl}/${versionTag}`;
   }
 
-  // Combine curl and sh commands with pipe
-  const commandParts = [...curlArgs, "|", ...shArgs];
-  const installCommand = commandParts.join(" ");
+  // Construct the install command
+  const installCommand = `curl ${installUrl} | sh`;
 
   // Execute the install command
   const proc = Bun.spawn(["sh", "-c", installCommand], {
