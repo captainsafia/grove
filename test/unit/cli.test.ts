@@ -62,35 +62,45 @@ describe("getWorktreePath security", () => {
   });
 
   describe("special character sanitization", () => {
+    // Note: We check path.basename() because on Windows the full path contains
+    // a colon in the drive letter (e.g., "D:\..."), but we only care that the
+    // branch name portion is sanitized.
+
     test("should sanitize angle brackets", () => {
       const result = getWorktreePath("feature<test>");
-      expect(result).not.toContain("<");
-      expect(result).not.toContain(">");
+      const basename = path.basename(result);
+      expect(basename).not.toContain("<");
+      expect(basename).not.toContain(">");
     });
 
     test("should sanitize colon", () => {
       const result = getWorktreePath("feature:test");
-      expect(result).not.toContain(":");
+      const basename = path.basename(result);
+      expect(basename).not.toContain(":");
     });
 
     test("should sanitize quotes", () => {
       const result = getWorktreePath('feature"test');
-      expect(result).not.toContain('"');
+      const basename = path.basename(result);
+      expect(basename).not.toContain('"');
     });
 
     test("should sanitize pipe", () => {
       const result = getWorktreePath("feature|test");
-      expect(result).not.toContain("|");
+      const basename = path.basename(result);
+      expect(basename).not.toContain("|");
     });
 
     test("should sanitize question mark", () => {
       const result = getWorktreePath("feature?test");
-      expect(result).not.toContain("?");
+      const basename = path.basename(result);
+      expect(basename).not.toContain("?");
     });
 
     test("should sanitize asterisk", () => {
       const result = getWorktreePath("feature*test");
-      expect(result).not.toContain("*");
+      const basename = path.basename(result);
+      expect(basename).not.toContain("*");
     });
   });
 
