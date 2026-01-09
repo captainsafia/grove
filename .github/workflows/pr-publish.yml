@@ -43,6 +43,12 @@ jobs:
       - name: Build for Linux ARM64
         run: bun build --compile --minify --sourcemap --target=bun-linux-arm64 ./src/index.ts --outfile grove-linux-arm64
 
+      - name: Build for Windows x64
+        run: bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe
+
+      - name: Build for Windows ARM64
+        run: bun build --compile --minify --sourcemap --target=bun-windows-arm64 ./src/index.ts --outfile grove-windows-arm64.exe
+
       - name: Upload Linux executables
         uses: actions/upload-artifact@v4
         with:
@@ -50,6 +56,15 @@ jobs:
           path: |
             grove-linux-x64
             grove-linux-arm64
+          retention-days: 1
+
+      - name: Upload Windows executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: grove-windows-executables
+          path: |
+            grove-windows-x64.exe
+            grove-windows-arm64.exe
           retention-days: 1
 
   build-macos:
@@ -156,7 +171,7 @@ jobs:
 
   publish-pr:
     runs-on: ubuntu-latest
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos]  # Windows is built in build-linux job
     permissions:
       contents: read
       pull-requests: write
@@ -175,6 +190,12 @@ jobs:
           name: grove-macos-executables
           path: ./executables
 
+      - name: Download Windows executables
+        uses: actions/download-artifact@v4
+        with:
+          name: grove-windows-executables
+          path: ./executables
+
       - name: Upload combined PR executables
         uses: actions/upload-artifact@v4
         with:
@@ -188,6 +209,7 @@ jobs:
           name: |
             grove-linux-executables
             grove-macos-executables
+            grove-windows-executables
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -216,7 +238,9 @@ jobs:
             - \`grove-linux-x64\`
             - \`grove-linux-arm64\`
             - \`grove-darwin-x64\`
-            - \`grove-darwin-arm64\``;
+            - \`grove-darwin-arm64\`
+            - \`grove-windows-x64.exe\`
+            - \`grove-windows-arm64.exe\``;
 
             // Check if a comment already exists
             const { data: comments } = await github.rest.issues.listComments({
