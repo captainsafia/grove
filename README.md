@@ -25,12 +25,24 @@ curl https://i.captainsafia.sh/captainsafia/grove | sh
 
 This will download the appropriate binary for your system and install it to `~/.grove/bin`.
 
-**Note:** Grove currently supports Linux and macOS only. Windows support is not available.
-
 To install a specific version:
 
 ```bash
 curl https://i.captainsafia.sh/captainsafia/grove/v1.0.0 | sh
+```
+
+### Quick Install (Windows)
+
+```powershell
+irm https://i.captainsafia.sh/captainsafia/grove | iex
+```
+
+This will download the appropriate binary for your system and install it to `%LOCALAPPDATA%\grove\bin`.
+
+To install a specific version:
+
+```powershell
+$env:GROVE_VERSION='v1.0.0'; irm https://i.captainsafia.sh/captainsafia/grove | iex
 ```
 
 ## Usage
@@ -132,6 +144,16 @@ source ~/.zshrc
 echo 'eval "$(grove shell-init fish)"' >> ~/.config/fish/config.fish
 source ~/.config/fish/config.fish
 ```
+
+**PowerShell:**
+
+Add this line to your PowerShell profile (`$PROFILE`):
+
+```powershell
+Invoke-Expression (grove shell-init pwsh)
+```
+
+To edit your profile, run `notepad $PROFILE`, then restart PowerShell.
 
 With shell integration enabled, `grove go feature-branch` will directly change your working directory.
 
