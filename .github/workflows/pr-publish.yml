@@ -1,7 +1,7 @@
 name: PR Build
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -27,7 +29,8 @@ jobs:
         id: version
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          COMMIT_SHA=${GITHUB_SHA::7}
+          COMMIT_SHA=${{ github.event.pull_request.head.sha }}
+          COMMIT_SHA=${COMMIT_SHA::7}
           PACKAGE_VERSION=$(jq -r '.version' package.json)
           PR_VERSION="${PACKAGE_VERSION}-pr.${PR_NUMBER}.${COMMIT_SHA}"
           echo "VERSION=$PR_VERSION" >> $GITHUB_OUTPUT
@@ -70,6 +73,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
