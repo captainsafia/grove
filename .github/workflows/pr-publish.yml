@@ -46,9 +46,6 @@ jobs:
       - name: Build for Windows x64
         run: bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe
 
-      - name: Build for Windows ARM64
-        run: bun build --compile --minify --sourcemap --target=bun-windows-arm64 ./src/index.ts --outfile grove-windows-arm64.exe
-
       - name: Upload Linux executables
         uses: actions/upload-artifact@v4
         with:
@@ -64,7 +61,6 @@ jobs:
           name: grove-windows-executables
           path: |
             grove-windows-x64.exe
-            grove-windows-arm64.exe
           retention-days: 1
 
   build-macos:
@@ -239,8 +235,7 @@ jobs:
             - \`grove-linux-arm64\`
             - \`grove-darwin-x64\`
             - \`grove-darwin-arm64\`
-            - \`grove-windows-x64.exe\`
-            - \`grove-windows-arm64.exe\``;
+            - \`grove-windows-x64.exe\``;
 
             // Check if a comment already exists
             const { data: comments } = await github.rest.issues.listComments({

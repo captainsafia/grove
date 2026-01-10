@@ -18,7 +18,10 @@ function Get-Architecture {
     $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
     switch ($arch) {
         "X64" { return "x64" }
-        "Arm64" { return "arm64" }
+        "Arm64" {
+            Write-Host "Warning: Windows ARM64 is not currently supported. Attempting x64 emulation..." -ForegroundColor Yellow
+            return "x64"
+        }
         default { return "unknown" }
     }
 }

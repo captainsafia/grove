@@ -37,7 +37,6 @@
     "build:darwin-x64": "bun build --compile --minify --sourcemap --target=bun-darwin-x64 ./src/index.ts --outfile grove-darwin-x64",
     "build:darwin-arm64": "bun build --compile --minify --sourcemap --target=bun-darwin-arm64 ./src/index.ts --outfile grove-darwin-arm64",
     "build:windows-x64": "bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe",
-    "build:windows-arm64": "bun build --compile --minify --sourcemap --target=bun-windows-arm64 ./src/index.ts --outfile grove-windows-arm64.exe",
     "dev": "bun run src/index.ts",
     "clean": "rm -rf dist grove grove-*",
     "test": "bun test test/unit && bun test test/integration",

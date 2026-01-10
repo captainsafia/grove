@@ -86,16 +86,12 @@ jobs:
       - name: Build for Windows x64
         run: bun run build:windows-x64
 
-      - name: Build for Windows ARM64
-        run: bun run build:windows-arm64
-
       - name: Upload Windows executables
         uses: actions/upload-artifact@v4
         with:
           name: grove-windows-executables
           path: |
             grove-windows-x64.exe
-            grove-windows-arm64.exe
 
   build-macos:
     name: Build and Sign macOS Executables
@@ -258,7 +254,6 @@ jobs:
             | macOS | x64 | `grove-darwin-x64` (signed & notarized) |
             | macOS | ARM64 | `grove-darwin-arm64` (signed & notarized) |
             | Windows | x64 | `grove-windows-x64.exe` |
-            | Windows | ARM64 | `grove-windows-arm64.exe` |
           draft: false
           prerelease: true
           files: |
@@ -267,7 +262,6 @@ jobs:
             ./executables/grove-darwin-x64
             ./executables/grove-darwin-arm64
             ./executables/grove-windows-x64.exe
-            ./executables/grove-windows-arm64.exe
 
   release:
     name: Release
@@ -325,7 +319,6 @@ jobs:
             | macOS | x64 | `grove-darwin-x64` (signed & notarized) |
             | macOS | ARM64 | `grove-darwin-arm64` (signed & notarized) |
             | Windows | x64 | `grove-windows-x64.exe` |
-            | Windows | ARM64 | `grove-windows-arm64.exe` |
 
             ## Changes
 
@@ -338,4 +331,3 @@ jobs:
             ./executables/grove-darwin-x64
             ./executables/grove-darwin-arm64
             ./executables/grove-windows-x64.exe
-            ./executables/grove-windows-arm64.exe
