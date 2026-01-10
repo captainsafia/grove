@@ -19,6 +19,12 @@ async function runGit(cwd: string, ...args: string[]): Promise<string> {
   return result.text().trim();
 }
 
+// Helper to normalize paths for cross-platform comparison
+// Git on Windows returns forward slashes, while Node's path.join returns backslashes
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
 describe("WorktreeManager Integration Tests", () => {
   let tempDir: string;
   let repoPath: string;
@@ -107,7 +113,7 @@ describe("WorktreeManager Integration Tests", () => {
 
       // Verify it appears in the list
       const worktrees = await manager.listWorktrees();
-      const found = worktrees.find((w) => w.path === worktreePath);
+      const found = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
       expect(found).toBeDefined();
       expect(found?.branch).toBe(branchName);
     });
@@ -163,7 +169,7 @@ describe("WorktreeManager Integration Tests", () => {
 
       // Verify it's gone
       const worktrees = await manager.listWorktrees();
-      const found = worktrees.find((w) => w.path === worktreePath);
+      const found = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
       expect(found).toBeUndefined();
     });
 
@@ -183,7 +189,7 @@ describe("WorktreeManager Integration Tests", () => {
       await manager.removeWorktree(worktreePath, true);
 
       const worktrees = await manager.listWorktrees();
-      const found = worktrees.find((w) => w.path === worktreePath);
+      const found = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
       expect(found).toBeUndefined();
     });
   });
@@ -252,7 +258,7 @@ describe("WorktreeManager Integration Tests", () => {
       });
 
       const worktrees = await manager.listWorktrees();
-      const worktree = worktrees.find((w) => w.path === worktreePath);
+      const worktree = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
 
       expect(worktree?.isDirty).toBe(false);
     });
@@ -269,7 +275,7 @@ describe("WorktreeManager Integration Tests", () => {
       fs.writeFileSync(path.join(worktreePath, "README.md"), "Modified content");
 
       const worktrees = await manager.listWorktrees();
-      const worktree = worktrees.find((w) => w.path === worktreePath);
+      const worktree = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
 
       expect(worktree?.isDirty).toBe(true);
     });
@@ -286,7 +292,7 @@ describe("WorktreeManager Integration Tests", () => {
       fs.writeFileSync(path.join(worktreePath, "new-file.txt"), "New content");
 
       const worktrees = await manager.listWorktrees();
-      const worktree = worktrees.find((w) => w.path === worktreePath);
+      const worktree = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
 
       expect(worktree?.isDirty).toBe(true);
     });
@@ -302,7 +308,7 @@ describe("WorktreeManager Integration Tests", () => {
       });
 
       const worktrees = await manager.listWorktrees();
-      const worktree = worktrees.find((w) => w.path === worktreePath);
+      const worktree = worktrees.find((w) => normalizePath(w.path) === normalizePath(worktreePath));
 
       expect(worktree?.branch).toBe(branchName);
     });
@@ -401,8 +407,8 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(worktreePath);
       const manager = await WorktreeManager.discover({ cache: false });
-      expect(manager.getRepoPath()).toBe(bareRepoPath);
-      expect(manager.getProjectRoot()).toBe(projectRoot);
+      expect(normalizePath(manager.getRepoPath())).toBe(normalizePath(bareRepoPath));
+      expect(normalizePath(manager.getProjectRoot())).toBe(normalizePath(projectRoot));
     } finally {
       process.chdir(originalCwd);
     }
@@ -425,8 +431,8 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(nestedPath);
       const manager = await WorktreeManager.discover({ cache: false });
-      expect(manager.getRepoPath()).toBe(bareRepoPath);
-      expect(manager.getProjectRoot()).toBe(projectRoot);
+      expect(normalizePath(manager.getRepoPath())).toBe(normalizePath(bareRepoPath));
+      expect(normalizePath(manager.getProjectRoot())).toBe(normalizePath(projectRoot));
     } finally {
       process.chdir(originalCwd);
     }
@@ -441,7 +447,7 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(bareRepoPath);
       const manager = await WorktreeManager.discover({ cache: false });
-      expect(manager.getRepoPath()).toBe(bareRepoPath);
+      expect(normalizePath(manager.getRepoPath())).toBe(normalizePath(bareRepoPath));
     } finally {
       process.chdir(originalCwd);
     }
@@ -459,8 +465,8 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(projectRoot);
       const manager = await WorktreeManager.discover({ cache: false });
-      expect(manager.getRepoPath()).toBe(bareRepoPath);
-      expect(manager.getProjectRoot()).toBe(projectRoot);
+      expect(normalizePath(manager.getRepoPath())).toBe(normalizePath(bareRepoPath));
+      expect(normalizePath(manager.getProjectRoot())).toBe(normalizePath(projectRoot));
     } finally {
       process.chdir(originalCwd);
     }
@@ -479,7 +485,7 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(worktreePath);
       await WorktreeManager.discover({ cache: true });
-      expect(process.env.GROVE_REPO).toBe(bareRepoPath);
+      expect(normalizePath(process.env.GROVE_REPO!)).toBe(normalizePath(bareRepoPath));
     } finally {
       process.chdir(originalCwd);
     }
@@ -513,7 +519,7 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(tempDir); // Different directory
       const manager = await WorktreeManager.discover({ cache: false });
-      expect(manager.getRepoPath()).toBe(bareRepoPath);
+      expect(normalizePath(manager.getRepoPath())).toBe(normalizePath(bareRepoPath));
     } finally {
       process.chdir(originalCwd);
     }
@@ -532,7 +538,7 @@ describe("Grove Anywhere - Discovery Integration Tests", () => {
     try {
       process.chdir(worktreePath);
       const manager = await WorktreeManager.discover({ cache: false });
-      expect(manager.getRepoPath()).toBe(bareRepoPath);
+      expect(normalizePath(manager.getRepoPath())).toBe(normalizePath(bareRepoPath));
     } finally {
       process.chdir(originalCwd);
     }

@@ -33,12 +33,28 @@ const FISH_FUNCTION = `function grove
   end
 end`;
 
+const POWERSHELL_FUNCTION = `function grove {
+    if ($args.Count -gt 0 -and $args[0] -eq 'go') {
+        $goArgs = @('go') + $args[1..($args.Count-1)] + @('-p')
+        $output = & grove.exe @goArgs 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -eq 0 -and (Test-Path $output -PathType Container)) {
+            Set-Location $output
+        } else {
+            Write-Output $output
+            return $exitCode
+        }
+    } else {
+        & grove.exe @args
+    }
+}`;
+
 export function createShellInitCommand(): Command {
   const command = new Command("shell-init");
 
   command
     .description("Output shell integration function for grove go")
-    .argument("<shell>", "Shell type: bash, zsh, or fish")
+    .argument("<shell>", "Shell type: bash, zsh, fish, pwsh, or powershell")
     .action(async (shell: string) => {
       try {
         await runShellInit(shell);
@@ -61,10 +77,14 @@ async function runShellInit(shell: string): Promise<void> {
     case "fish":
       console.log(FISH_FUNCTION);
       break;
+    case "pwsh":
+    case "powershell":
+      console.log(POWERSHELL_FUNCTION);
+      break;
     default:
       throw new Error(
         `Unsupported shell: ${shell}\n` +
-        `Supported shells: bash, zsh, fish`
+        `Supported shells: bash, zsh, fish, pwsh, powershell`
       );
   }
 }
@@ -77,6 +97,11 @@ async function runShellInit(shell: string): Promise<void> {
 function detectShell(): { shell: string; configFile: string } | null {
   const shellPath = process.env.SHELL || "";
   const shellName = process.env.SHELL_NAME || ""; // Some shells set this
+
+  // Check for PowerShell on Windows
+  if (process.env.PSModulePath && process.platform === "win32") {
+    return { shell: "pwsh", configFile: "$PROFILE" };
+  }
 
   // Check $SHELL first (most common case)
   if (shellPath.includes("zsh") || shellName === "zsh") {
@@ -135,13 +160,25 @@ export function getShellSetupInstructions(): { shell: string; instructions: stri
 
   const { shell, configFile } = detected;
 
-  const instructions = `
+  let instructions: string;
+  if (shell === "pwsh") {
+    instructions = `
+${chalk.bold("Tip:")} Add shell integration to change directories automatically.
+Add this line to your PowerShell profile (${chalk.cyan(configFile)}):
+
+  ${chalk.cyan(`Invoke-Expression (grove shell-init pwsh)`)}
+
+To edit your profile, run: ${chalk.cyan(`notepad $PROFILE`)}
+Then restart PowerShell.`;
+  } else {
+    instructions = `
 ${chalk.bold("Tip:")} Add shell integration to change directories automatically.
 Run this command to set it up:
 
   ${chalk.cyan(`echo 'eval "$(grove shell-init ${shell})"' >> ${configFile}`)}
 
 Then restart your shell or run: ${chalk.cyan(`source ${configFile}`)}`;
+  }
 
   return { shell, instructions };
 }
