@@ -42,7 +42,7 @@ This will download the appropriate binary for your system and install it to `%LO
 To install a specific version:
 
 ```powershell
-$env:GROVE_VERSION='v1.0.0'; irm https://i.captainsafia.sh/captainsafia/grove | iex
+irm https://i.captainsafia.sh/captainsafia/grove/v1.0.0 | iex
 ```
 
 ## Usage
