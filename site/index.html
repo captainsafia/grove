@@ -3,671 +3,929 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>grove - manage git worktrees with ease</title>
+    <title>Grove</title>
     <meta name="description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <!-- Open Graph / Social Media Meta Tags -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://safia.rocks/grove/">
-    <meta property="og:title" content="grove - manage git worktrees with ease">
+    <meta property="og:url" content="https://grove.safia.dev">
+    <meta property="og:title" content="Grove">
     <meta property="og:description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
-    <meta property="og:image" content="https://safia.rocks/grove/og-image.png">
+    <meta property="og:image" content="https://grove.safia.dev/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="grove - manage git worktrees with ease">
+    <meta name="twitter:title" content="Grove">
     <meta name="twitter:description" content="A CLI tool for managing Git worktrees. Create, list, and prune worktrees efficiently.">
-    <meta name="twitter:image" content="https://safia.rocks/grove/og-image.png">
+    <meta name="twitter:image" content="https://grove.safia.dev/og-image.png">
 
+    <script>
+        const theme = (() => {
+            if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+                return localStorage.getItem('theme');
+            }
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
+            }
+            return 'light';
+        })();
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
     <style>
+        :root {
+            --font-sans: "Source Sans 3", "Source Sans Pro", ui-sans-serif, system-ui, sans-serif;
+            --font-mono: "JetBrains Mono", ui-monospace, monospace;
+            --color-bg: #fff;
+            --color-surface: #f5f5f5;
+            --color-surface-elevated: #ebebeb;
+            --color-border: #e0e0e0;
+            --color-text: #171717;
+            --color-text-muted: #525252;
+            --color-text-subtle: #737373;
+            --color-accent: #1f5f44;
+            --color-green: #16a34a;
+            --color-amber: #92400e;
+        }
+
+        .dark {
+            --color-bg: #0a0a0a;
+            --color-surface: #111;
+            --color-surface-elevated: #171717;
+            --color-border: #262626;
+            --color-text: #ededed;
+            --color-text-muted: #a1a1a1;
+            --color-text-subtle: #6b6b6b;
+            --color-accent: #34d399;
+            --color-green: #22c55e;
+            --color-amber: #fbbf24;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: #1f2937;
-            background: #ffffff;
+            font-family: var(--font-sans);
+            line-height: 1.625;
+            color: var(--color-text);
+            background-color: var(--color-bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 0 20px;
+
+        code, pre {
+            font-family: var(--font-mono);
         }
-        
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        /* Header */
         header {
-            border-bottom: 1px solid #e5e7eb;
-            padding: 20px 0;
-            margin-bottom: 60px;
+            border-bottom: 1px solid var(--color-border);
         }
-        
+
+        .header-container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem;
+        }
+
         .header-content {
             display: flex;
             align-items: center;
-            justify-content: space-between;
         }
-        
+
         .logo {
             display: flex;
             align-items: center;
-            gap: 12px;
-            text-decoration: none;
-            color: #1f2937;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: var(--color-text);
+            transition: color 0.15s;
         }
-        
+
+        .logo:hover {
+            color: var(--color-accent);
+        }
+
         .logo img {
-            width: 48px;
-            height: 48px;
-        }
-        
-        .logo h1 {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1f5f44;
-        }
-        
-        .header-links {
-            display: flex;
-            gap: 24px;
-        }
-        
-        .header-links a {
-            color: #4b5563;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        
-        .header-links a:hover {
-            color: #1f5f44;
-        }
-        
-        .hero {
-            margin-bottom: 80px;
-        }
-        
-        .hero h2 {
-            font-size: 48px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #111827;
-        }
-        
-        .hero p {
-            font-size: 20px;
-            color: #6b7280;
-            margin-bottom: 32px;
-        }
-        
-        .install-cmd {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            padding: 16px;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 14px;
-            color: #1f5f44;
-            margin-bottom: 16px;
-            overflow-x: auto;
-            text-align: center;
+            width: 24px;
+            height: 24px;
         }
 
-        .install-cmd code {
-            background: none;
-            border: none;
-            padding: 0;
-        }
-        
-        section {
-            margin-bottom: 80px;
-        }
-        
-        h3 {
-            font-size: 32px;
-            font-weight: 600;
-            margin-bottom: 24px;
-            color: #111827;
-        }
-        
-        h4 {
-            font-size: 20px;
-            font-weight: 600;
-            margin-top: 32px;
-            margin-bottom: 12px;
-            color: #1f5f44;
-        }
-        
-        p {
-            margin-bottom: 16px;
-            color: #4b5563;
-        }
-        
-        code {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 3px;
-            padding: 2px 6px;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 14px;
-            color: #1f5f44;
-        }
-        
-        pre {
-            background: #1f2937;
-            border-radius: 6px;
-            padding: 16px;
-            margin: 16px 0 24px 0;
-            overflow-x: auto;
-        }
-        
-        pre code {
-            background: none;
-            border: none;
-            color: #d1d5db;
-            padding: 0;
-        }
-        
-        .command-group {
-            margin-bottom: 32px;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 24px 0;
-            font-size: 14px;
-        }
-        
-        th {
-            text-align: left;
-            padding: 12px;
-            background: #f9fafb;
-            border-bottom: 2px solid #e5e7eb;
-            font-weight: 600;
-            color: #1f5f44;
-        }
-        
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        td:first-child {
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 13px;
-            color: #1f5f44;
-        }
-        
-        footer {
-            border-top: 1px solid #e5e7eb;
-            padding: 40px 0;
-            margin-top: 80px;
-            text-align: center;
-            color: #6b7280;
-            font-size: 14px;
-        }
-        
-        footer a {
-            color: #1f5f44;
-            text-decoration: none;
-        }
-        
-        footer a:hover {
-            text-decoration: underline;
-        }
-        
-        /* Interactive Terminal Styles */
-        .terminal {
-            background: #1a1a2e;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            margin: 32px 0;
+        nav {
+            display: none;
+            align-items: center;
+            gap: 1.5rem;
+            margin-left: 2rem;
         }
 
-        .terminal-header {
-            background: #16213e;
-            padding: 12px 16px;
+        nav a {
+            font-size: 0.875rem;
+            color: var(--color-text-muted);
+            transition: color 0.15s;
+        }
+
+        nav a:hover {
+            color: var(--color-text);
+        }
+
+        .header-actions {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 0.75rem;
+            margin-left: auto;
+            flex-shrink: 0;
         }
 
-        .terminal-btn {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
+        .star-link {
+            display: none;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            color: var(--color-text-muted);
+            transition: color 0.15s;
         }
 
-        .terminal-btn.red { background: #ff5f56; }
-        .terminal-btn.yellow { background: #ffbd2e; }
-        .terminal-btn.green { background: #27ca40; }
-
-        .terminal-title {
-            flex: 1;
-            text-align: center;
-            color: #6b7280;
-            font-size: 13px;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        .star-link .star-icon {
+            transition: color 0.15s;
         }
 
-        .terminal-body {
-            padding: 20px;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 14px;
-            line-height: 1.8;
-            height: 280px;
-            overflow-y: auto;
+        .star-link:hover {
+            color: var(--color-text);
         }
 
-        .terminal-line {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 8px;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.3s ease, transform 0.3s ease;
+        .star-link:hover .star-icon {
+            color: #eab308;
         }
 
-        .terminal-line.visible {
-            opacity: 1;
-            transform: translateY(0);
+        .icon-btn {
+            padding: 0.25rem;
+            color: var(--color-text-muted);
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: color 0.15s;
         }
 
-        .terminal-prompt {
-            color: #27ca40;
-            margin-right: 8px;
-            user-select: none;
+        .icon-btn:hover {
+            color: var(--color-text);
         }
 
-        .terminal-command {
-            color: #e2e8f0;
+        .icon-btn svg {
+            width: 1.25rem;
+            height: 1.25rem;
         }
 
-        .terminal-output {
-            color: #9ca3af;
-            padding-left: 20px;
+        /* Theme toggle icons */
+        .dark .sun-icon { display: block; }
+        .dark .moon-icon { display: none; }
+        .sun-icon { display: none; }
+        .moon-icon { display: block; }
+
+        /* Mobile menu */
+        .mobile-menu-btn {
             display: block;
         }
 
-        .terminal-output.success {
-            color: #27ca40;
+        .mobile-menu {
+            display: none;
+            border-top: 1px solid var(--color-border);
         }
 
-        .terminal-output.info {
-            color: #60a5fa;
+        .mobile-menu.open {
+            display: block;
         }
 
-        .terminal-output.highlight {
-            color: #fbbf24;
+        .mobile-menu-content {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem;
         }
 
-        .typing-cursor {
-            display: inline-block;
-            width: 8px;
-            height: 16px;
-            background: #27ca40;
-            margin-left: 2px;
-            animation: blink 1s step-end infinite;
-            vertical-align: middle;
+        .mobile-menu-content a {
+            display: block;
+            padding: 0.25rem 0;
+            font-size: 0.875rem;
+            color: var(--color-text-muted);
+            transition: color 0.15s;
         }
 
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
+        .mobile-menu-content a:hover {
+            color: var(--color-text);
         }
 
-        /* Hero improvements */
+        /* Main content */
+        main {
+            flex: 1;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Hero */
         .hero {
-            margin-bottom: 80px;
+            padding: 4rem 0 3rem;
         }
 
-        .hero-text {
-            text-align: center;
-            margin-bottom: 32px;
+        .hero h1 {
+            font-size: 1.875rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            margin-bottom: 1rem;
+            color: var(--color-text);
         }
 
-        @media (max-width: 640px) {
-            .hero h2 {
-                font-size: 28px;
+        .hero > .container > p {
+            font-size: 1.125rem;
+            color: var(--color-text-muted);
+            max-width: 480px;
+            line-height: 1.625;
+        }
+
+        .hero-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin: 3rem 0;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            background-color: var(--color-text);
+            color: var(--color-bg);
+            transition: background-color 0.15s;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            background-color: transparent;
+            color: var(--color-text-muted);
+            border: 1px solid var(--color-border);
+            transition: all 0.15s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--color-text-subtle);
+            color: var(--color-text);
+        }
+
+        /* Code block */
+        .code-block {
+            position: relative;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+        }
+
+        .code-block-header {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 0.75rem;
+            color: var(--color-text-subtle);
+            font-family: var(--font-mono);
+        }
+
+        .code-block-content {
+            position: relative;
+        }
+
+        .code-block pre {
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.875rem;
+            line-height: 1.625;
+            margin: 0;
+            background: transparent;
+            border-radius: 0;
+        }
+
+        .code-block code {
+            color: var(--color-text-muted);
+        }
+
+        .code-block pre code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            color: var(--color-text-muted);
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.375rem;
+            border-radius: 0.25rem;
+            color: var(--color-text-subtle);
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.15s;
+        }
+
+        .code-block:hover .copy-btn,
+        .copy-btn:focus {
+            opacity: 1;
+        }
+
+        .copy-btn:hover {
+            color: var(--color-text);
+            background-color: var(--color-surface-elevated);
+        }
+
+        .copy-btn svg {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .copy-btn .check-icon {
+            display: none;
+            color: var(--color-green);
+        }
+
+        .copy-btn.copied .copy-icon {
+            display: none;
+        }
+
+        .copy-btn.copied .check-icon {
+            display: block;
+        }
+
+        /* Syntax highlighting */
+        .keyword { color: var(--color-accent); font-weight: 500; }
+        .string { color: var(--color-green); }
+        .comment { color: var(--color-text-subtle); }
+
+        /* Install section */
+        .install-section {
+            padding: 3rem 0;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .install-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .install-label h2 {
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: var(--color-text);
+        }
+
+        .install-label p {
+            font-size: 0.875rem;
+            color: var(--color-text-muted);
+        }
+
+        .install-cmd {
+            position: relative;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            border-radius: 0.5rem;
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 0.75rem 1rem;
+            overflow-x: auto;
+        }
+
+        .install-cmd .prompt {
+            color: var(--color-green);
+            user-select: none;
+        }
+
+        .install-cmd .cmd {
+            color: var(--color-text-muted);
+        }
+
+        /* Docs section */
+        .docs-section {
+            padding: 4rem 0;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .docs-section h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--color-text);
+        }
+
+        .docs-section > .container > p {
+            color: var(--color-text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .command-group {
+            margin-bottom: 2rem;
+        }
+
+        .command-group h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--color-accent);
+        }
+
+        .command-group p {
+            font-size: 0.875rem;
+            color: var(--color-text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .command-group pre {
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0.375rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+
+        .command-group pre code {
+            color: var(--color-text-muted);
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        code {
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0.25rem;
+            padding: 0.125rem 0.375rem;
+            font-size: 0.875rem;
+            color: var(--color-accent);
+        }
+
+        /* Commands table */
+        .commands-section {
+            padding: 4rem 0;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .commands-section h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--color-text);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            background-color: var(--color-surface);
+            border-bottom: 1px solid var(--color-border);
+            font-weight: 600;
+            color: var(--color-accent);
+        }
+
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--color-border);
+            color: var(--color-text-muted);
+        }
+
+        td:first-child {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            color: var(--color-text);
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--color-border);
+        }
+
+        .footer-container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        footer p {
+            font-size: 0.875rem;
+            color: var(--color-text-subtle);
+        }
+
+        footer a {
+            color: var(--color-text-muted);
+            transition: color 0.15s;
+        }
+
+        footer a:hover {
+            color: var(--color-text);
+        }
+
+        /* Responsive */
+        @media (min-width: 640px) {
+            .star-link {
+                display: inline-flex;
             }
 
-            .hero p {
-                font-size: 16px;
+            .install-content {
+                flex-direction: row;
+                align-items: center;
             }
 
-            .header-content {
-                flex-direction: column;
-                gap: 16px;
-                align-items: flex-start;
+            .install-label {
+                width: 33.333%;
             }
 
-            .terminal-body {
-                padding: 16px;
-                font-size: 12px;
-                min-height: 240px;
-            }
-
-            h3 {
-                font-size: 24px;
-            }
-
-            h4 {
-                font-size: 18px;
-            }
-
-            pre {
-                padding: 12px;
-                font-size: 12px;
-            }
-
-            table {
-                font-size: 12px;
-            }
-
-            th, td {
-                padding: 8px;
-            }
-
-            td:first-child {
-                font-size: 11px;
-            }
-
-            .command-group {
-                margin-bottom: 24px;
-            }
-
-            section {
-                margin-bottom: 48px;
+            .install-cmd-wrapper {
+                flex: 1;
             }
         }
 
-        @media (max-width: 480px) {
-            .container {
-                padding: 0 16px;
+        @media (min-width: 768px) {
+            nav {
+                display: flex;
             }
 
-            .hero h2 {
-                font-size: 24px;
+            .mobile-menu-btn {
+                display: none;
             }
 
-            .terminal-body {
-                font-size: 11px;
-                padding: 12px;
-                min-height: 220px;
+            .hero {
+                padding: 6rem 0 4rem;
             }
 
-            .header-links {
-                gap: 16px;
-            }
-
-            header {
-                margin-bottom: 32px;
+            .hero h1 {
+                font-size: 2.25rem;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
+    <header>
+        <div class="header-container">
             <div class="header-content">
-                <a href="#" class="logo">
+                <a href="/" class="logo">
                     <img src="logo.png" alt="Grove Logo">
-                    <h1>grove</h1>
+                    Grove
                 </a>
-                <div class="header-links">
-                    <a href="https://github.com/captainsafia/grove">GitHub</a>
-                    <a href="https://github.com/captainsafia/grove/releases">Releases</a>
+                <nav>
+                    <a href="#usage">Usage</a>
+                    <a href="#commands">Commands</a>
+                </nav>
+                <div class="header-actions">
+                    <a href="https://github.com/captainsafia/grove/stargazers" target="_blank" rel="noopener noreferrer" class="star-link">
+                        <svg class="star-icon" style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                        </svg>
+                        Star
+                    </a>
+                    <button id="theme-toggle" type="button" class="icon-btn" aria-label="Toggle theme">
+                        <svg class="sun-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"></path>
+                        </svg>
+                        <svg class="moon-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"></path>
+                        </svg>
+                    </button>
+                    <button id="mobile-menu-btn" class="icon-btn mobile-menu-btn" aria-label="Open menu">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
                 </div>
             </div>
-        </header>
-
-        <section class="hero">
-            <div class="hero-text">
-                <h2>Manage git worktrees with ease</h2>
-                <p>Create, list, and prune worktrees efficiently. Run commands from anywhere in your project.</p>
+        </div>
+        <div id="mobile-menu" class="mobile-menu">
+            <div class="mobile-menu-content">
+                <a href="#usage">Usage</a>
+                <a href="#commands">Commands</a>
             </div>
-
-            <div class="install-cmd">
-                <code>curl https://i.captainsafia.sh/captainsafia/grove | sh</code>
-            </div>
-
-            <div class="terminal">
-                <div class="terminal-header">
-                    <div class="terminal-btn red"></div>
-                    <div class="terminal-btn yellow"></div>
-                    <div class="terminal-btn green"></div>
-                </div>
-                <div class="terminal-body" id="terminal-content">
-                    <!-- Content injected by JavaScript -->
-                </div>
-            </div>
-
-        </section>
-
-        <section>
-            <h3>Usage</h3>
-            
-            <div class="command-group">
-                <h4>Initialize a new worktree setup</h4>
-                <p>Create a bare clone optimized for worktrees:</p>
-                <pre><code>grove init https://github.com/user/repo.git</code></pre>
-            </div>
-
-            <div class="command-group">
-                <h4>Add a new worktree</h4>
-                <p>Create a worktree for a branch (creates branch if it doesn't exist):</p>
-                <pre><code>grove add feature-branch</code></pre>
-                <p>With tracking for a remote branch:</p>
-                <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
-            </div>
-
-            <div class="command-group">
-                <h4>Navigate to a worktree</h4>
-                <p>Open a new shell session in a worktree directory:</p>
-                <pre><code>grove go feature-branch</code></pre>
-                <p>Navigate by partial branch name for nested branches:</p>
-                <pre><code>grove go my-feature</code></pre>
-                <p>Exit the shell (Ctrl+D or <code>exit</code>) to return to your previous directory.</p>
-            </div>
-
-            <div class="command-group">
-                <h4>List worktrees</h4>
-                <p>Show all worktrees (alias: <code>grove ls</code>):</p>
-                <pre><code>grove list</code></pre>
-                <p>Show detailed information:</p>
-                <pre><code>grove list --details</code></pre>
-                <p>Show only dirty worktrees:</p>
-                <pre><code>grove list --dirty</code></pre>
-            </div>
-
-            <div class="command-group">
-                <h4>Sync with origin</h4>
-                <p>Update the bare clone with the latest changes from origin:</p>
-                <pre><code>grove sync</code></pre>
-                <p>Sync a specific branch:</p>
-                <pre><code>grove sync --branch develop</code></pre>
-            </div>
-
-            <div class="command-group">
-                <h4>Prune worktrees</h4>
-                <p>Preview what would be removed:</p>
-                <pre><code>grove prune --dry-run</code></pre>
-                <p>Remove worktrees for branches merged to main:</p>
-                <pre><code>grove prune</code></pre>
-                <p>Remove worktrees older than 30 days (supports human-friendly or ISO 8601 format):</p>
-                <pre><code>grove prune --older-than 30d
-# or
-grove prune --older-than P30D</code></pre>
-                <p>Use a different base branch:</p>
-                <pre><code>grove prune --base develop</code></pre>
-            </div>
-
-            <div class="command-group">
-                <h4>Remove a worktree</h4>
-                <p>Remove a specific worktree (alias: <code>grove rm</code>):</p>
-                <pre><code>grove remove feature-branch</code></pre>
-                <p>Force removal even with uncommitted changes:</p>
-                <pre><code>grove remove feature-branch --force</code></pre>
-                <p>Note: Dirty worktrees require <code>--force</code> to remove.</p>
-            </div>
-
-            <div class="command-group">
-                <h4>Self-update</h4>
-                <p>Update grove to the latest version:</p>
-                <pre><code>grove self-update</code></pre>
-                <p>Update to a specific version:</p>
-                <pre><code>grove self-update v1.0.0</code></pre>
-                <p>Update to a specific PR build (requires GitHub CLI):</p>
-                <pre><code>grove self-update --pr 42</code></pre>
-            </div>
-        </section>
-
-        <section>
-            <h3>Commands</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Command</th>
-                        <th>Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>grove init &lt;git-url&gt;</td>
-                        <td>Create a new worktree setup</td>
-                    </tr>
-                    <tr>
-                        <td>grove add &lt;branch&gt;</td>
-                        <td>Create a new worktree for a branch</td>
-                    </tr>
-                    <tr>
-                        <td>grove go &lt;name&gt;</td>
-                        <td>Navigate to a worktree</td>
-                    </tr>
-                    <tr>
-                        <td>grove list (ls) [options]</td>
-                        <td>List all worktrees</td>
-                    </tr>
-                    <tr>
-                        <td>grove sync [options]</td>
-                        <td>Sync the bare clone with origin</td>
-                    </tr>
-                    <tr>
-                        <td>grove prune [options]</td>
-                        <td>Remove worktrees for merged branches</td>
-                    </tr>
-                    <tr>
-                        <td>grove remove (rm) &lt;name&gt;</td>
-                        <td>Remove a specific worktree</td>
-                    </tr>
-                    <tr>
-                        <td>grove self-update [version]</td>
-                        <td>Update grove to a specific version or PR</td>
-                    </tr>
-                    <tr>
-                        <td>grove version</td>
-                        <td>Show version information</td>
-                    </tr>
-                    <tr>
-                        <td>grove help [command]</td>
-                        <td>Show help information</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <footer>
-            <p>
-                Created by <a href="https://safia.rocks">@captainsafia</a> ·
-                <a href="https://github.com/captainsafia/grove">GitHub</a> ·
-                Licensed under MIT
-            </p>
-        </footer>
-    </div>
+        </div>
+    </header>
 
     <script>
-        const commands = [
-            { type: 'command', text: 'grove init https://github.com/captainsafia/grove.git' },
-            { type: 'output', text: '✓ Initialized worktree setup: grove', class: 'success' },
-            { type: 'output', text: '  Bare repository: grove/grove.git', class: 'info' },
-            { type: 'command', text: 'cd grove/grove.git' },
-            { type: 'command', text: 'grove add main' },
-            { type: 'output', text: '✓ Created worktree: main', class: 'success' },
-            { type: 'output', text: '  Path: /Users/captainsafia/gh/tests/grove/main', class: 'info' },
-            { type: 'command', text: 'grove go main' },
-            { type: 'output', text: '✓ Entering worktree: main', class: 'success' }
-        ];
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const themeToggle = document.getElementById('theme-toggle');
 
-        const TYPING_SPEED = 35; // ms per character
-        const OUTPUT_DELAY = 80; // ms between output lines
-        const COMMAND_PAUSE = 400; // ms pause after command before output
+        mobileMenuBtn?.addEventListener('click', () => {
+            mobileMenu?.classList.toggle('open');
+        });
 
-        function runDemo() {
-            const terminal = document.getElementById('terminal-content');
-            terminal.innerHTML = '';
-
-            let index = 0;
-
-            async function typeCommand(text, container) {
-                const commandSpan = document.createElement('span');
-                commandSpan.className = 'terminal-command';
-                container.appendChild(commandSpan);
-
-                const cursor = document.createElement('span');
-                cursor.className = 'typing-cursor';
-                container.appendChild(cursor);
-
-                for (let i = 0; i < text.length; i++) {
-                    commandSpan.textContent += text[i];
-                    terminal.scrollTop = terminal.scrollHeight;
-                    await new Promise(r => setTimeout(r, TYPING_SPEED));
-                }
-
-                cursor.remove();
-            }
-
-            async function showNextItem() {
-                if (index >= commands.length) return;
-
-                const item = commands[index];
-                const line = document.createElement('div');
-                line.className = 'terminal-line visible';
-
-                if (item.type === 'command') {
-                    const prompt = document.createElement('span');
-                    prompt.className = 'terminal-prompt';
-                    prompt.textContent = '$ ';
-                    line.appendChild(prompt);
-                    terminal.appendChild(line);
-
-                    await typeCommand(item.text, line);
-                    await new Promise(r => setTimeout(r, COMMAND_PAUSE));
-                } else {
-                    const output = document.createElement('span');
-                    output.className = `terminal-output ${item.class || ''}`;
-                    output.textContent = item.text;
-                    line.appendChild(output);
-                    terminal.appendChild(line);
-                    terminal.scrollTop = terminal.scrollHeight;
-                    await new Promise(r => setTimeout(r, OUTPUT_DELAY));
-                }
-
-                index++;
-                showNextItem();
-            }
-
-            showNextItem();
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            runDemo();
+        themeToggle?.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
         });
     </script>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="container">
+                <h1>Manage git worktrees with ease</h1>
+                <p>Create, list, and prune worktrees efficiently. Run commands from anywhere in your project.</p>
+
+                <div class="hero-buttons">
+                    <a href="#usage" class="btn-primary">Get Started</a>
+                    <a href="https://github.com/captainsafia/grove" target="_blank" rel="noopener noreferrer" class="btn-secondary">GitHub</a>
+                </div>
+
+                <div class="code-block">
+                    <div class="code-block-header">terminal</div>
+                    <div class="code-block-content">
+                        <button type="button" class="copy-btn" id="hero-copy-btn" aria-label="Copy code">
+                            <svg class="copy-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                            <svg class="check-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </button>
+                        <pre><code><span class="comment"># Initialize a worktree setup</span>
+<span class="prompt">$</span> grove init https://github.com/captainsafia/grove.git
+<span class="string">✓ Initialized worktree setup: grove</span>
+
+<span class="comment"># Add a worktree for a branch</span>
+<span class="prompt">$</span> grove add main
+<span class="string">✓ Created worktree: main</span>
+
+<span class="comment"># Navigate to the worktree</span>
+<span class="prompt">$</span> grove go main
+<span class="string">✓ Entering worktree: main</span></code></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <script>
+            const heroCopyBtn = document.getElementById('hero-copy-btn');
+            const heroCode = `# Initialize a worktree setup
+$ grove init https://github.com/captainsafia/grove.git
+
+# Add a worktree for a branch
+$ grove add main
+
+# Navigate to the worktree
+$ grove go main`;
+            heroCopyBtn?.addEventListener('click', async () => {
+                await navigator.clipboard.writeText(heroCode);
+                heroCopyBtn.classList.add('copied');
+                setTimeout(() => {
+                    heroCopyBtn.classList.remove('copied');
+                }, 1500);
+            });
+        </script>
+
+        <!-- Install Section -->
+        <section class="install-section">
+            <div class="container">
+                <div class="install-content">
+                    <div class="install-label">
+                        <h2>Install</h2>
+                        <p>Single binary, no dependencies.</p>
+                    </div>
+                    <div class="install-cmd-wrapper">
+                        <div class="install-cmd" id="install-cmd-container">
+                            <span class="prompt" id="install-prompt">$ </span><span class="cmd" id="install-cmd-text">curl https://i.safia.sh/captainsafia/grove | sh</span>
+                            <button type="button" class="copy-btn" id="install-copy-btn" aria-label="Copy install command" style="opacity: 0; position: absolute; top: 50%; transform: translateY(-50%); right: 0.5rem;">
+                                <svg class="copy-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                <svg class="check-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <script>
+            const installCopyBtn = document.getElementById('install-copy-btn');
+            const installCmdContainer = document.getElementById('install-cmd-container');
+            const installCmdText = document.getElementById('install-cmd-text');
+            const installPrompt = document.getElementById('install-prompt');
+            
+            // Detect Windows and update install command
+            const isWindows = navigator.platform.indexOf('Win') > -1 || navigator.userAgent.indexOf('Windows') > -1;
+            let copyText = 'curl https://i.safia.sh/captainsafia/grove | sh';
+            
+            if (isWindows) {
+                installPrompt.textContent = '> ';
+                installCmdText.textContent = 'irm https://i.safia.sh/captainsafia/grove.ps1 | iex';
+                copyText = 'irm https://i.safia.sh/captainsafia/grove.ps1 | iex';
+            }
+            
+            installCmdContainer?.addEventListener('mouseenter', () => {
+                installCopyBtn.style.opacity = '1';
+            });
+            installCmdContainer?.addEventListener('mouseleave', () => {
+                installCopyBtn.style.opacity = '0';
+            });
+            
+            installCopyBtn?.addEventListener('click', async () => {
+                await navigator.clipboard.writeText(copyText);
+                installCopyBtn.classList.add('copied');
+                setTimeout(() => {
+                    installCopyBtn.classList.remove('copied');
+                }, 1500);
+            });
+        </script>
+
+        <!-- Usage Section -->
+        <section id="usage" class="docs-section">
+            <div class="container">
+                <h2>Usage</h2>
+                <p>Common workflows and examples for using Grove.</p>
+
+                <div class="command-group">
+                    <h3>Initialize a new worktree setup</h3>
+                    <p>Create a bare clone optimized for worktrees:</p>
+                    <pre><code>grove init https://github.com/user/repo.git</code></pre>
+                </div>
+
+                <div class="command-group">
+                    <h3>Add a new worktree</h3>
+                    <p>Create a worktree for a branch (creates branch if it doesn't exist):</p>
+                    <pre><code>grove add feature-branch</code></pre>
+                    <p>With tracking for a remote branch:</p>
+                    <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
+                </div>
+
+                <div class="command-group">
+                    <h3>Navigate to a worktree</h3>
+                    <p>Open a new shell session in a worktree directory:</p>
+                    <pre><code>grove go feature-branch</code></pre>
+                    <p>Navigate by partial branch name for nested branches:</p>
+                    <pre><code>grove go my-feature</code></pre>
+                    <p>Exit the shell (Ctrl+D or <code>exit</code>) to return to your previous directory.</p>
+                </div>
+
+                <div class="command-group">
+                    <h3>List worktrees</h3>
+                    <p>Show all worktrees (alias: <code>grove ls</code>):</p>
+                    <pre><code>grove list</code></pre>
+                    <p>Show detailed information:</p>
+                    <pre><code>grove list --details</code></pre>
+                    <p>Show only dirty worktrees:</p>
+                    <pre><code>grove list --dirty</code></pre>
+                </div>
+
+                <div class="command-group">
+                    <h3>Sync with origin</h3>
+                    <p>Update the bare clone with the latest changes from origin:</p>
+                    <pre><code>grove sync</code></pre>
+                    <p>Sync a specific branch:</p>
+                    <pre><code>grove sync --branch develop</code></pre>
+                </div>
+
+                <div class="command-group">
+                    <h3>Prune worktrees</h3>
+                    <p>Preview what would be removed:</p>
+                    <pre><code>grove prune --dry-run</code></pre>
+                    <p>Remove worktrees for branches merged to main:</p>
+                    <pre><code>grove prune</code></pre>
+                    <p>Remove worktrees older than 30 days (supports human-friendly or ISO 8601 format):</p>
+                    <pre><code>grove prune --older-than 30d
+# or
+grove prune --older-than P30D</code></pre>
+                    <p>Use a different base branch:</p>
+                    <pre><code>grove prune --base develop</code></pre>
+                </div>
+
+                <div class="command-group">
+                    <h3>Remove a worktree</h3>
+                    <p>Remove a specific worktree (alias: <code>grove rm</code>):</p>
+                    <pre><code>grove remove feature-branch</code></pre>
+                    <p>Force removal even with uncommitted changes:</p>
+                    <pre><code>grove remove feature-branch --force</code></pre>
+                    <p>Note: Dirty worktrees require <code>--force</code> to remove.</p>
+                </div>
+
+                <div class="command-group">
+                    <h3>Self-update</h3>
+                    <p>Update grove to the latest version:</p>
+                    <pre><code>grove self-update</code></pre>
+                    <p>Update to a specific version:</p>
+                    <pre><code>grove self-update v1.0.0</code></pre>
+                    <p>Update to a specific PR build (requires GitHub CLI):</p>
+                    <pre><code>grove self-update --pr 42</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Commands Section -->
+        <section id="commands" class="commands-section">
+            <div class="container">
+                <h2>Commands</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Command</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>grove init &lt;git-url&gt;</td>
+                            <td>Create a new worktree setup</td>
+                        </tr>
+                        <tr>
+                            <td>grove add &lt;branch&gt;</td>
+                            <td>Create a new worktree for a branch</td>
+                        </tr>
+                        <tr>
+                            <td>grove go &lt;name&gt;</td>
+                            <td>Navigate to a worktree</td>
+                        </tr>
+                        <tr>
+                            <td>grove list (ls) [options]</td>
+                            <td>List all worktrees</td>
+                        </tr>
+                        <tr>
+                            <td>grove sync [options]</td>
+                            <td>Sync the bare clone with origin</td>
+                        </tr>
+                        <tr>
+                            <td>grove prune [options]</td>
+                            <td>Remove worktrees for merged branches</td>
+                        </tr>
+                        <tr>
+                            <td>grove remove (rm) &lt;name&gt;</td>
+                            <td>Remove a specific worktree</td>
+                        </tr>
+                        <tr>
+                            <td>grove self-update [version]</td>
+                            <td>Update grove to a specific version or PR</td>
+                        </tr>
+                        <tr>
+                            <td>grove version</td>
+                            <td>Show version information</td>
+                        </tr>
+                        <tr>
+                            <td>grove help [command]</td>
+                            <td>Show help information</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <p>
+                Made with ❤️ and 🤖 by <a href="https://safia.rocks" target="_blank" rel="noopener noreferrer">captainsafia</a>
+            </p>
+        </div>
+    </footer>
 </body>
 </html>
