@@ -110,7 +110,7 @@ async function showWorktreePicker(manager: WorktreeManager, options: GoCommandOp
   }
 
   // Show interactive picker with fuzzy search
-  const selectedBranch = await search({
+  const selectedWorktree = await search({
     message: "Select a worktree (type to search):",
     source: async (term) => {
       const searchTerm = (term || "").toLowerCase();
@@ -123,16 +123,12 @@ async function showWorktreePicker(manager: WorktreeManager, options: GoCommandOp
 
           return {
             name: `${statusIndicator} ${wt.branch} ${chalk.gray(`(${createdStr})`)}`,
-            value: wt.branch,
+            value: wt,
             description: wt.path,
           };
         });
     },
   });
 
-  // Find the selected worktree and navigate to it
-  const selectedWorktree = worktrees.find((wt) => wt.branch === selectedBranch);
-  if (selectedWorktree) {
-    await navigateToWorktree(selectedWorktree, options);
-  }
+  await navigateToWorktree(selectedWorktree, options);
 }
