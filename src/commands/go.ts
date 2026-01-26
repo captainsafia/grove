@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { spawn } from "child_process";
 import chalk from "chalk";
+import search from "@inquirer/search";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { getShellSetupInstructions, markShellTipShown, shouldShowShellTip } from "./shell-init";
 import { handleCommandError, formatCreatedTime } from "../utils";
@@ -32,9 +33,9 @@ async function runGo(name: string | undefined, options: GoCommandOptions): Promi
   // Use discovery to find the bare clone from anywhere in the project hierarchy
   const manager = await WorktreeManager.discover();
 
-  // If no name provided, list all worktrees
+  // If no name provided, show interactive picker
   if (!name || !name.trim()) {
-    await listWorktrees(manager);
+    await showWorktreePicker(manager, options);
     return;
   }
 
@@ -44,6 +45,10 @@ async function runGo(name: string | undefined, options: GoCommandOptions): Promi
     throw new Error(`Worktree '${name}' not found. Use 'grove list' to see available worktrees.`);
   }
 
+  await navigateToWorktree(worktree, options);
+}
+
+async function navigateToWorktree(worktree: Worktree, options: GoCommandOptions): Promise<void> {
   // If path-only mode, just output the path (for shell integration to use)
   if (options.pathOnly) {
     console.log(worktree.path);
@@ -92,37 +97,42 @@ async function runGo(name: string | undefined, options: GoCommandOptions): Promi
   });
 }
 
-async function listWorktrees(manager: WorktreeManager): Promise<void> {
-  console.log(chalk.gray("Available worktrees:"));
-  console.log(chalk.gray("Legend: ") + chalk.green("green") + chalk.gray(" = clean, ") + chalk.yellow("yellow") + chalk.gray(" = dirty"));
-  console.log();
-
-  let foundAny = false;
-
+async function showWorktreePicker(manager: WorktreeManager, options: GoCommandOptions): Promise<void> {
+  // Collect all worktrees
+  const worktrees: Worktree[] = [];
   for await (const worktree of manager.streamWorktrees()) {
-    foundAny = true;
-    printWorktreeItem(worktree);
+    worktrees.push(worktree);
   }
 
-  if (!foundAny) {
+  if (worktrees.length === 0) {
     console.log(chalk.yellow("No worktrees found."));
-  } else {
-    console.log();
-    console.log(chalk.gray("Usage: grove go <branch-name>"));
-  }
-}
-
-function printWorktreeItem(worktree: Worktree): void {
-  // Color the branch based on dirty status
-  let branchDisplay = worktree.branch;
-  if (worktree.isDirty) {
-    branchDisplay = chalk.yellow(branchDisplay);
-  } else {
-    branchDisplay = chalk.green(branchDisplay);
+    return;
   }
 
-  const createdStr = formatCreatedTime(worktree.createdAt);
+  // Show interactive picker with fuzzy search
+  const selectedBranch = await search({
+    message: "Select a worktree (type to search):",
+    source: async (term) => {
+      const searchTerm = (term || "").toLowerCase();
 
-  // Simple format: branch name and time
-  console.log(`  ${branchDisplay}  ${chalk.gray(createdStr)}`);
+      return worktrees
+        .filter((wt) => wt.branch.toLowerCase().includes(searchTerm))
+        .map((wt) => {
+          const createdStr = formatCreatedTime(wt.createdAt);
+          const statusIndicator = wt.isDirty ? chalk.yellow("●") : chalk.green("●");
+
+          return {
+            name: `${statusIndicator} ${wt.branch} ${chalk.gray(`(${createdStr})`)}`,
+            value: wt.branch,
+            description: wt.path,
+          };
+        });
+    },
+  });
+
+  // Find the selected worktree and navigate to it
+  const selectedWorktree = worktrees.find((wt) => wt.branch === selectedBranch);
+  if (selectedWorktree) {
+    await navigateToWorktree(selectedWorktree, options);
+  }
 }
