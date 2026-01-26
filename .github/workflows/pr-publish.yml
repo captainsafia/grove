@@ -225,7 +225,7 @@ jobs:
 
             **Install with:**
             \`\`\`bash
-            curl https://i.captainsafia.sh/captainsafia/grove/pr/${prNumber} | sh
+            curl https://i.safia.sh/captainsafia/grove/pr/${prNumber} | sh
             \`\`\`
 
             **Or if you already have grove installed:**
