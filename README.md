@@ -20,7 +20,7 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 ### Quick Install (Linux/macOS)
 
 ```bash
-curl https://i.captainsafia.sh/captainsafia/grove | sh
+curl https://i.safia.sh/captainsafia/grove | sh
 ```
 
 This will download the appropriate binary for your system and install it to `~/.grove/bin`.
@@ -28,13 +28,13 @@ This will download the appropriate binary for your system and install it to `~/.
 To install a specific version:
 
 ```bash
-curl https://i.captainsafia.sh/captainsafia/grove/v1.0.0 | sh
+curl https://i.safia.sh/captainsafia/grove/v1.0.0 | sh
 ```
 
 ### Quick Install (Windows)
 
 ```powershell
-irm https://i.captainsafia.sh/captainsafia/grove | iex
+irm https://i.safia.sh/captainsafia/grove | iex
 ```
 
 This will download the appropriate binary for your system and install it to `%LOCALAPPDATA%\grove\bin`.
@@ -42,7 +42,7 @@ This will download the appropriate binary for your system and install it to `%LO
 To install a specific version:
 
 ```powershell
-irm https://i.captainsafia.sh/captainsafia/grove/v1.0.0 | iex
+irm https://i.safia.sh/captainsafia/grove/v1.0.0 | iex
 ```
 
 ## Usage

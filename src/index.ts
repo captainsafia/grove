@@ -70,6 +70,7 @@ const skipUpdateCheck =
   args.includes('--help') ||
   args.includes('-h') ||
   args.includes('self-update') ||
+  args.includes('shell-init') ||
   args.length === 0;
 
 if (!skipUpdateCheck) {

@@ -46,8 +46,8 @@ async function runSelfUpdate(
     throw new Error("Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)");
   }
 
-  // Construct the install command using the i.captainsafia.sh installer
-  const baseUrl = "https://i.captainsafia.sh/captainsafia/grove";
+  // Construct the install command using the i.safia.sh installer
+  const baseUrl = "https://i.safia.sh/captainsafia/grove";
   let installUrl = baseUrl;
 
   // Build the URL based on options
