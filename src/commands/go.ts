@@ -98,6 +98,13 @@ async function navigateToWorktree(worktree: Worktree, options: GoCommandOptions)
 }
 
 async function showWorktreePicker(manager: WorktreeManager, options: GoCommandOptions): Promise<void> {
+  // Check for interactive terminal
+  if (!process.stdin.isTTY) {
+    console.error(chalk.red("Error: Interactive selection requires a TTY."));
+    console.error(chalk.gray("Use 'grove go <branch-name>' or 'grove list' instead."));
+    process.exit(1);
+  }
+
   // Collect all worktrees
   const worktrees: Worktree[] = [];
   for await (const worktree of manager.streamWorktrees()) {
@@ -110,25 +117,35 @@ async function showWorktreePicker(manager: WorktreeManager, options: GoCommandOp
   }
 
   // Show interactive picker with fuzzy search
-  const selectedWorktree = await search({
-    message: "Select a worktree (type to search):",
-    source: async (term) => {
-      const searchTerm = (term || "").toLowerCase();
+  let selectedWorktree: Worktree;
+  try {
+    selectedWorktree = await search({
+      message: "Select a worktree (type to search):",
+      source: async (term) => {
+        const searchTerm = (term || "").toLowerCase();
 
-      return worktrees
-        .filter((wt) => wt.branch.toLowerCase().includes(searchTerm))
-        .map((wt) => {
-          const createdStr = formatCreatedTime(wt.createdAt);
-          const statusIndicator = wt.isDirty ? chalk.yellow("●") : chalk.green("●");
+        return worktrees
+          .filter((wt) => wt.branch.toLowerCase().includes(searchTerm))
+          .map((wt) => {
+            const createdStr = formatCreatedTime(wt.createdAt);
+            const statusIndicator = wt.isDirty ? chalk.yellow("●") : chalk.green("●");
 
-          return {
-            name: `${statusIndicator} ${wt.branch} ${chalk.gray(`(${createdStr})`)}`,
-            value: wt,
-            description: wt.path,
-          };
-        });
-    },
-  });
+            return {
+              name: `${statusIndicator} ${wt.branch} ${chalk.gray(`(${createdStr})`)}`,
+              value: wt,
+              description: wt.path,
+            };
+          });
+      },
+    });
+  } catch (error) {
+    // Handle user cancellation (Ctrl+C or Escape)
+    if (error instanceof Error && error.name === "ExitPromptError") {
+      console.log(chalk.gray("Selection cancelled."));
+      return;
+    }
+    throw error;
+  }
 
   await navigateToWorktree(selectedWorktree, options);
 }
