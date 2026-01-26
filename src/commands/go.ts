@@ -3,7 +3,7 @@ import { spawn } from "child_process";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { getShellSetupInstructions, markShellTipShown, shouldShowShellTip } from "./shell-init";
-import { handleCommandError, formatPathWithTilde, formatCreatedTime } from "../utils";
+import { handleCommandError, formatCreatedTime } from "../utils";
 import { Worktree } from "../models";
 
 interface GoCommandOptions {
@@ -14,7 +14,7 @@ export function createGoCommand(): Command {
   const command = new Command("go");
 
   command
-    .description("Navigate to a worktree by branch name, or list all worktrees if no name is provided")
+    .description("Navigate to a worktree by branch name")
     .argument("[name]", "Branch name or worktree name to navigate to (optional)")
     .option("-p, --path-only", "Output path only (used by shell integration)", false)
     .action(async (name: string | undefined, options: GoCommandOptions) => {
