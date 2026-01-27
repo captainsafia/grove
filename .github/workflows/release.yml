@@ -296,6 +296,28 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+          echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        uses: warpdotdev/warp-agent-action@main
+        with:
+          prompt: |
+            Generate a changelog for the release ${{ github.ref_name }}.
+
+            1. Use git to get the list of commits between ${{ steps.prev_tag.outputs.PREV_TAG || 'the beginning of the repository' }} and ${{ github.ref_name }}.
+            2. Format the output as a markdown bullet list.
+            3. Each bullet point should be a natural language description of the change, not just the raw commit message. Rewrite commit messages to be clear, user-friendly descriptions.
+            4. Include the category (feature, bug fix, documentation, etc.) at the start of each bullet point based on commit message prefixes like "feat:", "fix:", "docs:", "chore:", etc.
+            5. If there is no previous tag, include all commits up to ${{ github.ref_name }}.
+
+            Output only the formatted changelog markdown, nothing else.
+          warp_api_key: ${{ secrets.WARP_API_KEY }}
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
@@ -322,7 +344,7 @@ jobs:
 
             ## Changes
 
-            See the [commits](https://github.com/captainsafia/grove/compare/v${{ steps.version.outputs.VERSION }}...HEAD) for details.
+            ${{ steps.changelog.outputs.agent_output }}
           draft: false
           prerelease: false
           files: |
