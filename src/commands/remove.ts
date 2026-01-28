@@ -3,6 +3,8 @@ import chalk from "chalk";
 import confirm from "@inquirer/confirm";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { handleCommandError } from "../utils";
+import { Worktree } from "../models";
+import { pickWorktree } from "./worktree-picker";
 
 interface RemoveCommandOptions {
   force: boolean;
@@ -15,14 +17,14 @@ export function createRemoveCommand(): Command {
   command
     .alias("rm")
     .description("Remove a worktree")
-    .argument("<name>", "Branch name or path of the worktree to remove")
+    .argument("[name]", "Branch name or path of the worktree to remove (optional)")
     .option(
       "--force",
       "Remove the worktree even if it has uncommitted changes",
       false,
     )
     .option("-y, --yes", "Skip confirmation prompt", false)
-    .action(async (name: string, options: RemoveCommandOptions) => {
+    .action(async (name: string | undefined, options: RemoveCommandOptions) => {
       try {
         await runRemove(name, options);
       } catch (error) {
@@ -34,30 +36,42 @@ export function createRemoveCommand(): Command {
 }
 
 async function runRemove(
-  name: string,
+  name: string | undefined,
   options: RemoveCommandOptions,
 ): Promise<void> {
-  if (!name || !name.trim()) {
-    throw new Error('Branch name is required');
-  }
-
   // Use discovery to find the bare clone from anywhere in the project hierarchy
   const manager = await WorktreeManager.discover();
 
-  // Find the worktree by branch name or path
+  // Get all worktrees
   const worktrees = await manager.listWorktrees();
-  const worktree = worktrees.find(
-    (wt) =>
-      wt.branch === name ||
-      wt.path === name ||
-      wt.path.endsWith(`/${name}`) ||
-      wt.path.endsWith(`\\${name}`),
-  );
 
-  if (!worktree) {
-    throw new Error(
-      `Worktree '${name}' not found. Use 'grove list' to see available worktrees.`,
+  let worktree: Worktree | null | undefined;
+
+  // If no name provided, show interactive picker
+  if (!name || !name.trim()) {
+    worktree = await pickWorktree(worktrees, {
+      message: "Select a worktree to remove (type to search):",
+      filter: (wt) => !wt.isMain && !wt.isLocked,
+    });
+
+    if (!worktree) {
+      return;
+    }
+  } else {
+    // Find the worktree by branch name or path
+    worktree = worktrees.find(
+      (wt) =>
+        wt.branch === name ||
+        wt.path === name ||
+        wt.path.endsWith(`/${name}`) ||
+        wt.path.endsWith(`\\${name}`),
     );
+
+    if (!worktree) {
+      throw new Error(
+        `Worktree '${name}' not found. Use 'grove list' to see available worktrees.`,
+      );
+    }
   }
 
   if (worktree.isMain) {
