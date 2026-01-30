@@ -175,3 +175,6 @@ Icon[
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Hone test runner directory
+.hone

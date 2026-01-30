@@ -39,9 +39,9 @@
     "build:windows-x64": "bun build --compile --minify --sourcemap --target=bun-windows-x64 ./src/index.ts --outfile grove-windows-x64.exe",
     "dev": "bun run src/index.ts",
     "clean": "rm -rf dist grove grove-*",
-    "test": "bun test test/unit && bun test test/integration",
+    "test": "bun test test/unit",
     "test:unit": "bun test test/unit",
-    "test:integration": "bun test test/integration",
+    "test:integration": "bun run build:compile && PATH=\"$PWD:$PATH\" hone run test/integration/*.hone",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "typecheck": "bun x tsc --noEmit"

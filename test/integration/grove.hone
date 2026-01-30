@@ -1,0 +1,89 @@
+#! shell: /bin/bash
+#! timeout: 60s
+
+# Grove CLI Integration Tests
+# Tests the core CLI commands and workflows
+
+TEST "grove --help shows usage information"
+
+RUN grove --help
+ASSERT exit_code == 0
+ASSERT stdout contains "grove"
+ASSERT stdout contains "Git worktree management tool"
+ASSERT stdout contains "Commands:"
+
+TEST "grove --version shows version"
+
+RUN grove --version
+ASSERT exit_code == 0
+ASSERT stdout matches /\d+\.\d+\.\d+/
+
+TEST "grove with invalid command shows error"
+
+RUN grove invalid-command
+ASSERT exit_code == 1
+ASSERT stderr contains "Invalid command"
+
+TEST "grove list without a grove repository shows error"
+
+ENV TEST_DIR=/tmp/grove-non-repo-test
+RUN setup: rm -rf $TEST_DIR && mkdir -p $TEST_DIR
+RUN list-test: cd $TEST_DIR && grove list
+ASSERT list-test.exit_code != 0
+ASSERT list-test.stderr contains "Not in a grove repository"
+RUN cleanup: rm -rf $TEST_DIR
+
+TEST "grove init with invalid URL shows error"
+
+ENV TEST_DIR=/tmp/grove-non-repo-test
+RUN setup: rm -rf $TEST_DIR && mkdir -p $TEST_DIR
+RUN cd $TEST_DIR && grove init not-a-valid-url
+ASSERT exit_code == 1
+ASSERT stderr contains "Invalid git URL format"
+
+TEST "grove add without branch name shows error"
+
+RUN grove add
+ASSERT exit_code != 0
+
+TEST "grove remove without branch name shows error"
+
+RUN grove remove
+ASSERT exit_code != 0
+
+TEST "grove list --json outputs valid JSON structure"
+
+# Create a temporary git repo to test with
+RUN setup: mkdir -p /tmp/grove-test-json && cd /tmp/grove-test-json && rm -rf test-repo && git init --bare test-repo.git && cd test-repo.git && git config user.email "test@example.com" && git config user.name "Test User"
+
+# Create initial commit via a temp working tree
+RUN init-commit: cd /tmp/grove-test-json && rm -rf temp-init && git clone test-repo.git temp-init && cd temp-init && git config user.email "test@example.com" && git config user.name "Test User" && echo "# Test" > README.md && git add README.md && git commit -m "Initial commit" && git push origin HEAD:main
+
+# Test JSON output from within the bare repo
+RUN json-test: cd /tmp/grove-test-json/test-repo.git && grove list --json
+ASSERT json-test.exit_code == 0
+ASSERT json-test.stdout contains "["
+ASSERT json-test.stdout contains "]"
+
+# Cleanup
+RUN rm -rf /tmp/grove-test-json
+
+TEST "grove list shows legend"
+
+# Create a temporary git repo
+RUN setup: mkdir -p /tmp/grove-test-legend && cd /tmp/grove-test-legend && rm -rf test-repo && git init --bare test-repo.git && cd test-repo.git && git config user.email "test@example.com" && git config user.name "Test User"
+
+# Create initial commit
+RUN init-commit: cd /tmp/grove-test-legend && rm -rf temp-init && git clone test-repo.git temp-init && cd temp-init && git config user.email "test@example.com" && git config user.name "Test User" && echo "# Test" > README.md && git add README.md && git commit -m "Initial commit" && git push origin HEAD:main
+
+# Test list output
+RUN list-test: cd /tmp/grove-test-legend/test-repo.git && grove list
+ASSERT list-test.exit_code == 0
+ASSERT list-test.stdout contains "Legend:"
+ASSERT list-test.stdout contains "green"
+ASSERT list-test.stdout contains "clean"
+ASSERT list-test.stdout contains "yellow"
+ASSERT list-test.stdout contains "dirty"
+
+# Cleanup
+RUN rm -rf /tmp/grove-test-legend

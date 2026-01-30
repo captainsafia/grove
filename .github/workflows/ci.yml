@@ -31,8 +31,8 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
-      - name: Run tests
-        run: bun test
+      - name: Run unit tests
+        run: bun test test/unit
 
       - name: Build
         run: bun run build
@@ -65,3 +65,30 @@ jobs:
 
       - name: Check for outdated dependencies
         run: bun outdated || true
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build single-file executable
+        run: bun run build:compile
+
+      - name: Add grove to PATH
+        run: echo "${{ github.workspace }}" >> $GITHUB_PATH
+
+      - name: Run integration tests
+        uses: captainsafia/hone/hone-github-action@main
+        with:
+          version: 'preview'
+          tests: 'test/integration/*.hone'
