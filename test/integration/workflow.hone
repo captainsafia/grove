@@ -1,0 +1,192 @@
+#! shell: /bin/bash
+#! timeout: 300s
+
+# Grove CLI Workflow Integration Tests
+# Tests the complete worktree management workflow using the real grove repository
+
+TEST "full worktree lifecycle: init, add, list, remove"
+
+# Cleanup any previous test runs
+RUN cleanup-pre: rm -rf /tmp/grove-workflow-test
+
+# Initialize a new grove project using the real grove repo
+RUN init: cd /tmp && grove init https://github.com/captainsafia/grove.git
+ASSERT init.exit_code == 0
+ASSERT init.stdout contains "Initialized worktree setup"
+
+# Verify the bare clone was created
+RUN verify-init: test -d /tmp/grove/grove.git
+ASSERT verify-init.exit_code == 0
+
+# Add a worktree for main branch
+RUN add-main: cd /tmp/grove/grove.git && grove add main
+ASSERT add-main.exit_code == 0
+ASSERT add-main.stdout contains "Created worktree"
+ASSERT add-main.stdout contains "main"
+
+# Verify worktree was created
+RUN verify-worktree: test -d /tmp/grove/main
+ASSERT verify-worktree.exit_code == 0
+
+# List worktrees
+RUN list: cd /tmp/grove/grove.git && grove list
+ASSERT list.exit_code == 0
+ASSERT list.stdout contains "main"
+
+# List worktrees with JSON output
+RUN list-json: cd /tmp/grove/grove.git && grove list --json
+ASSERT list-json.exit_code == 0
+ASSERT list-json.stdout contains '"branch"'
+ASSERT list-json.stdout contains '"main"'
+ASSERT list-json.stdout contains '"path"'
+
+# Add a new feature branch worktree
+RUN add-feature: cd /tmp/grove/grove.git && grove add feature-test
+ASSERT add-feature.exit_code == 0
+ASSERT add-feature.stdout contains "Created new branch and worktree"
+ASSERT add-feature.stdout contains "feature-test"
+
+# Verify feature worktree was created
+RUN verify-feature: test -d /tmp/grove/feature-test
+ASSERT verify-feature.exit_code == 0
+
+# List should now show both worktrees
+RUN list-both: cd /tmp/grove/grove.git && grove list --json
+ASSERT list-both.exit_code == 0
+ASSERT list-both.stdout contains "main"
+ASSERT list-both.stdout contains "feature-test"
+
+# Remove the feature worktree
+RUN remove-feature: cd /tmp/grove/grove.git && grove remove feature-test --yes
+ASSERT remove-feature.exit_code == 0
+ASSERT remove-feature.stdout contains "Removed worktree"
+ASSERT remove-feature.stdout contains "feature-test"
+
+# Verify feature worktree was removed
+RUN verify-removed: test ! -d /tmp/grove/feature-test
+ASSERT verify-removed.exit_code == 0
+
+# List should now only show main
+RUN list-final: cd /tmp/grove/grove.git && grove list --json
+ASSERT list-final.exit_code == 0
+ASSERT list-final.stdout contains "main"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove
+
+TEST "grove add with nested branch names"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-nested-test
+RUN init: cd /tmp && mkdir -p grove-nested-test && cd grove-nested-test && grove init https://github.com/captainsafia/grove.git
+ASSERT init.exit_code == 0
+
+# Add a worktree with a nested branch name (feature/something)
+RUN add-nested: cd /tmp/grove-nested-test/grove/grove.git && grove add feature/my-feature
+ASSERT add-nested.exit_code == 0
+ASSERT add-nested.stdout contains "Created new branch and worktree"
+ASSERT add-nested.stdout contains "feature/my-feature"
+
+# Verify nested worktree was created
+RUN verify-nested: test -d /tmp/grove-nested-test/grove/feature/my-feature
+ASSERT verify-nested.exit_code == 0
+
+# List should show the nested branch
+RUN list: cd /tmp/grove-nested-test/grove/grove.git && grove list --json
+ASSERT list.exit_code == 0
+ASSERT list.stdout contains "feature/my-feature"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-nested-test
+
+TEST "grove remove refuses to remove main worktree"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-main-test
+RUN init: cd /tmp && mkdir -p grove-main-test && cd grove-main-test && grove init https://github.com/captainsafia/grove.git
+RUN add-main: cd /tmp/grove-main-test/grove/grove.git && grove add main
+
+# Try to remove main worktree - should fail
+RUN remove-main: cd /tmp/grove-main-test/grove/grove.git && grove remove main --yes
+ASSERT remove-main.exit_code != 0
+ASSERT remove-main.stderr contains "Cannot remove the main worktree"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-main-test
+
+TEST "grove remove refuses dirty worktree without --force"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-dirty-test
+RUN init: cd /tmp && mkdir -p grove-dirty-test && cd grove-dirty-test && grove init https://github.com/captainsafia/grove.git
+RUN add-main: cd /tmp/grove-dirty-test/grove/grove.git && grove add main
+RUN add-feature: cd /tmp/grove-dirty-test/grove/grove.git && grove add dirty-branch
+
+# Make the feature worktree dirty
+RUN make-dirty: echo "uncommitted changes" > /tmp/grove-dirty-test/grove/dirty-branch/dirty.txt
+
+# Try to remove dirty worktree without --force - should fail
+RUN remove-dirty: cd /tmp/grove-dirty-test/grove/grove.git && grove remove dirty-branch --yes
+ASSERT remove-dirty.exit_code != 0
+ASSERT remove-dirty.stdout contains "uncommitted changes"
+
+# Remove with --force should succeed
+RUN remove-force: cd /tmp/grove-dirty-test/grove/grove.git && grove remove dirty-branch --force --yes
+ASSERT remove-force.exit_code == 0
+ASSERT remove-force.stdout contains "Removed worktree"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-dirty-test
+
+TEST "grove list with --dirty filter"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-filter-test
+RUN init: cd /tmp && mkdir -p grove-filter-test && cd grove-filter-test && grove init https://github.com/captainsafia/grove.git
+RUN add-main: cd /tmp/grove-filter-test/grove/grove.git && grove add main
+RUN add-clean: cd /tmp/grove-filter-test/grove/grove.git && grove add clean-branch
+RUN add-dirty: cd /tmp/grove-filter-test/grove/grove.git && grove add dirty-branch
+
+# Make one worktree dirty
+RUN make-dirty: echo "uncommitted" > /tmp/grove-filter-test/grove/dirty-branch/dirty.txt
+
+# List only dirty worktrees
+RUN list-dirty: cd /tmp/grove-filter-test/grove/grove.git && grove list --dirty
+ASSERT list-dirty.exit_code == 0
+ASSERT list-dirty.stdout contains "dirty-branch"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-filter-test
+
+TEST "grove init prevents nesting inside existing grove repo"
+
+# Initialize first grove project
+RUN cleanup-pre: rm -rf /tmp/grove-nest-test
+RUN init-first: cd /tmp && mkdir -p grove-nest-test && cd grove-nest-test && grove init https://github.com/captainsafia/grove.git
+ASSERT init-first.exit_code == 0
+
+# Add a worktree
+RUN add-main: cd /tmp/grove-nest-test/grove/grove.git && grove add main
+
+# Try to init another grove project inside the worktree - should fail
+RUN init-nested: cd /tmp/grove-nest-test/grove/main && grove init https://github.com/captainsafia/grove.git
+ASSERT init-nested.exit_code != 0
+ASSERT init-nested.stderr contains "Cannot initialize grove inside an existing grove repository"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-nest-test
+
+TEST "grove list alias works"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-alias-test
+RUN init: cd /tmp && mkdir -p grove-alias-test && cd grove-alias-test && grove init https://github.com/captainsafia/grove.git
+RUN add-main: cd /tmp/grove-alias-test/grove/grove.git && grove add main
+
+# Test the 'ls' alias for 'list'
+RUN list-alias: cd /tmp/grove-alias-test/grove/grove.git && grove ls
+ASSERT list-alias.exit_code == 0
+ASSERT list-alias.stdout contains "Legend:"
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-alias-test
