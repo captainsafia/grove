@@ -34,6 +34,20 @@ async function runSync(options: SyncCommandOptions): Promise<void> {
   // Determine the branch to sync
   const branch = options.branch || (await manager.getDefaultBranch());
 
+  // Check if the branch is checked out in any worktree
+  const worktrees = await manager.listWorktrees();
+  const checkedOutWorktree = worktrees.find((wt) => wt.branch === branch);
+
+  if (checkedOutWorktree) {
+    console.log(
+      chalk.yellow(`Branch '${branch}' is checked out in a worktree. Git won't sync against a checked-out branch (a limitation of git worktrees).`),
+    );
+    console.log(
+      chalk.yellow(`Run 'git fetch origin', then merge or rebase from 'origin/${branch}'.`),
+    );
+    process.exit(1);
+  }
+
   await manager.syncBranch(branch);
 
   console.log(chalk.green("✓ Synced"), chalk.bold(branch), chalk.gray("from origin"));
