@@ -84,7 +84,7 @@ async function runInit(gitUrl: string): Promise<void> {
     console.log();
     console.log(chalk.bold("Next steps:"));
     console.log(chalk.gray("  cd"), bareRepoDir);
-    console.log(chalk.gray("  grove add main"));
+    console.log(chalk.gray("  grove add <branch-name>"));
   } catch (error) {
     // Clean up on failure - only remove if we created the directory
     if (createdDir) {

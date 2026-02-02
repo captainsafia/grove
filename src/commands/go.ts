@@ -1,11 +1,11 @@
 import { Command } from "commander";
 import { spawn } from "child_process";
 import chalk from "chalk";
-import search from "@inquirer/search";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { getShellSetupInstructions, markShellTipShown, shouldShowShellTip } from "./shell-init";
-import { handleCommandError, formatCreatedTime } from "../utils";
+import { handleCommandError } from "../utils";
 import { Worktree } from "../models";
+import { pickWorktree } from "./worktree-picker";
 
 interface GoCommandOptions {
   pathOnly: boolean;
@@ -33,16 +33,25 @@ async function runGo(name: string | undefined, options: GoCommandOptions): Promi
   // Use discovery to find the bare clone from anywhere in the project hierarchy
   const manager = await WorktreeManager.discover();
 
+  let worktree: Worktree | null | undefined;
+
   // If no name provided, show interactive picker
   if (!name || !name.trim()) {
-    await showWorktreePicker(manager, options);
-    return;
-  }
+    const worktrees: Worktree[] = [];
+    for await (const wt of manager.streamWorktrees()) {
+      worktrees.push(wt);
+    }
 
-  const worktree = await manager.findWorktreeByName(name);
+    worktree = await pickWorktree(worktrees);
+    if (!worktree) {
+      return;
+    }
+  } else {
+    worktree = await manager.findWorktreeByName(name);
 
-  if (!worktree) {
-    throw new Error(`Worktree '${name}' not found. Use 'grove list' to see available worktrees.`);
+    if (!worktree) {
+      throw new Error(`Worktree '${name}' not found. Use 'grove list' to see available worktrees.`);
+    }
   }
 
   await navigateToWorktree(worktree, options);
@@ -97,55 +106,3 @@ async function navigateToWorktree(worktree: Worktree, options: GoCommandOptions)
   });
 }
 
-async function showWorktreePicker(manager: WorktreeManager, options: GoCommandOptions): Promise<void> {
-  // Check for interactive terminal
-  if (!process.stdin.isTTY) {
-    console.error(chalk.red("Error: Interactive selection requires a TTY."));
-    console.error(chalk.gray("Use 'grove go <branch-name>' or 'grove list' instead."));
-    process.exit(1);
-  }
-
-  // Collect all worktrees
-  const worktrees: Worktree[] = [];
-  for await (const worktree of manager.streamWorktrees()) {
-    worktrees.push(worktree);
-  }
-
-  if (worktrees.length === 0) {
-    console.log(chalk.yellow("No worktrees found."));
-    return;
-  }
-
-  // Show interactive picker with fuzzy search
-  let selectedWorktree: Worktree;
-  try {
-    selectedWorktree = await search({
-      message: "Select a worktree (type to search):",
-      source: async (term) => {
-        const searchTerm = (term || "").toLowerCase();
-
-        return worktrees
-          .filter((wt) => wt.branch.toLowerCase().includes(searchTerm))
-          .map((wt) => {
-            const createdStr = formatCreatedTime(wt.createdAt);
-            const statusIndicator = wt.isDirty ? chalk.yellow("●") : chalk.green("●");
-
-            return {
-              name: `${statusIndicator} ${wt.branch} ${chalk.gray(`(${createdStr})`)}`,
-              value: wt,
-              description: wt.path,
-            };
-          });
-      },
-    });
-  } catch (error) {
-    // Handle user cancellation (Ctrl+C or Escape)
-    if (error instanceof Error && error.name === "ExitPromptError") {
-      console.log(chalk.gray("Selection cancelled."));
-      return;
-    }
-    throw error;
-  }
-
-  await navigateToWorktree(selectedWorktree, options);
-}
