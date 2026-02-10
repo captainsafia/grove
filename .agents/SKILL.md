@@ -79,10 +79,10 @@ Define in `src/models/index.ts`
 ## Testing
 
 ### Structure
-- Unit tests: `test/unit/*.test.ts`
-- Integration tests: `test/integration/`
+- **Unit tests**: `test/unit/*.test.ts` - Uses Bun's built-in test runner
+- **Integration tests**: `test/integration/*.hone` - Uses [Hone](https://github.com/nicholasgrose/hone) CLI testing framework
 
-### Pattern
+### Unit test pattern
 ```typescript
 import { describe, test, expect, mock } from "bun:test";
 
@@ -91,6 +91,12 @@ describe("FeatureName", () => {
     expect(result).toBe(expected);
   });
 });
+```
+
+### Running tests
+```bash
+bun test              # Unit tests only
+bun run test:integration  # Builds executable, runs Hone tests
 ```
 
 ## Commit Messages
