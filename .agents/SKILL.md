@@ -80,7 +80,7 @@ Define in `src/models/index.ts`
 
 ### Structure
 - **Unit tests**: `test/unit/*.test.ts` - Uses Bun's built-in test runner
-- **Integration tests**: `test/integration/*.hone` - Uses [Hone](https://github.com/nicholasgrose/hone) CLI testing framework
+- **Integration tests**: `test/integration/*.hone` - Uses [Hone](https://hone.safia.dev/) CLI testing framework
 
 ### Unit test pattern
 ```typescript
