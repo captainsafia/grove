@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import * as fs from "fs";
 import * as path from "path";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
@@ -6,6 +7,7 @@ import { handleCommandError } from "../utils";
 
 interface AddCommandOptions {
   track?: string;
+  bootstrap?: string;
 }
 
 export function createAddCommand(): Command {
@@ -17,6 +19,10 @@ export function createAddCommand(): Command {
     .option(
       "-t, --track <remote-branch>",
       "Set up tracking for the specified remote branch",
+    )
+    .option(
+      "-b, --bootstrap <script-or-command>",
+      "Run script or command after worktree creation (e.g. ./scripts/setup.sh or 'npm install')",
     )
     .action(async (name: string, options: AddCommandOptions) => {
       try {
@@ -78,6 +84,42 @@ async function runAdd(name: string, options: AddCommandOptions): Promise<void> {
     console.log(chalk.green("✓ Created worktree:"), chalk.bold(name));
   }
   console.log(chalk.gray("  Path:"), worktreePath);
+
+  if (options.bootstrap) {
+    await runBootstrapScript(options.bootstrap, worktreePath);
+  }
+}
+
+async function runBootstrapScript(script: string, worktreePath: string): Promise<void> {
+  const scriptPath = path.isAbsolute(script)
+    ? script
+    : path.resolve(worktreePath, script);
+
+  const isScriptFile = fs.existsSync(scriptPath) && fs.statSync(scriptPath).isFile();
+
+  let proc: ReturnType<typeof Bun.spawn>;
+  if (isScriptFile) {
+    console.log(chalk.gray("  Running bootstrap script:"), scriptPath);
+    proc = Bun.spawn(["/bin/sh", scriptPath], {
+      cwd: worktreePath,
+      stdio: "inherit",
+    });
+  } else {
+    console.log(chalk.gray("  Running bootstrap command:"), script);
+    proc = Bun.spawn(["/bin/sh", "-c", script], {
+      cwd: worktreePath,
+      stdio: "inherit",
+    });
+  }
+
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(
+      `Bootstrap ${isScriptFile ? "script" : "command"} exited with code ${exitCode}. Worktree was created at ${worktreePath}.`,
+    );
+  }
+
+  console.log(chalk.green("✓ Bootstrap completed"));
 }
 
 function getWorktreePath(branchName: string, projectRoot: string): string {

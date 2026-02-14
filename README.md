@@ -84,6 +84,19 @@ Track a remote branch:
 grove add feature/new-feature --track origin/feature/new-feature
 ```
 
+Run a bootstrap script or command after worktree creation (e.g. install dependencies, audit, setup):
+
+```bash
+# Run a script file
+grove add feature/new-feature --bootstrap ./scripts/setup.sh
+
+# Run a command directly
+grove add feature/new-feature --bootstrap "npm install"
+grove add feature/new-feature --bootstrap "bun install"
+```
+
+Scripts and commands run with the worktree as the current directory. If the argument is a path to an existing file, it runs as a script; otherwise it runs as a shell command.
+
 ### Remove a worktree
 
 Remove a worktree:

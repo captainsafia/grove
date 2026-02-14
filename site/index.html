@@ -798,6 +798,9 @@ $ grove go main`;
                     <pre><code>grove add feature-branch</code></pre>
                     <p>With tracking for a remote branch:</p>
                     <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
+                    <p>Run a bootstrap script or command after creation (install deps, audit, setup):</p>
+                    <pre><code>grove add feature-branch --bootstrap ./scripts/setup.sh
+grove add feature-branch --bootstrap "npm install"</code></pre>
                 </div>
 
                 <div class="command-group">
