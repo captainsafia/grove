@@ -97,19 +97,20 @@ async function runBootstrapScript(script: string, worktreePath: string): Promise
 
   const isScriptFile = fs.existsSync(scriptPath) && fs.statSync(scriptPath).isFile();
 
+  const spawnOptions = {
+    cwd: worktreePath,
+    stdout: "inherit" as const,
+    stderr: "inherit" as const,
+    stdin: "inherit" as const,
+  };
+
   let proc: ReturnType<typeof Bun.spawn>;
   if (isScriptFile) {
     console.log(chalk.gray("  Running bootstrap script:"), scriptPath);
-    proc = Bun.spawn(["/bin/sh", scriptPath], {
-      cwd: worktreePath,
-      stdio: "inherit",
-    });
+    proc = Bun.spawn(["/bin/sh", scriptPath], spawnOptions);
   } else {
     console.log(chalk.gray("  Running bootstrap command:"), script);
-    proc = Bun.spawn(["/bin/sh", "-c", script], {
-      cwd: worktreePath,
-      stdio: "inherit",
-    });
+    proc = Bun.spawn(["/bin/sh", "-c", script], spawnOptions);
   }
 
   const exitCode = await proc.exited;
