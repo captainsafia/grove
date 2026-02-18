@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { getSelfUpdateCommand } from "../utils";
 
 interface SelfUpdateCommandOptions {
   pr?: string;
@@ -59,26 +60,12 @@ async function runSelfUpdate(
     installUrl = `${baseUrl}/${versionTag}`;
   }
 
-  const isWindows = process.platform === "win32";
-  let proc: ReturnType<typeof Bun.spawn>;
-
-  if (isWindows) {
-    // On Windows, use PowerShell with Invoke-RestMethod
-    const psInstallUrl = `${installUrl}.ps1`;
-    proc = Bun.spawn(["powershell", "-NoProfile", "-Command", `irm ${psInstallUrl} | iex`], {
-      stdout: "inherit",
-      stderr: "inherit",
-      stdin: "inherit",
-    });
-  } else {
-    // On Unix-like systems, use curl and sh
-    const installCommand = `curl ${installUrl} | sh`;
-    proc = Bun.spawn(["sh", "-c", installCommand], {
-      stdout: "inherit",
-      stderr: "inherit",
-      stdin: "inherit",
-    });
-  }
+  const { command, args } = getSelfUpdateCommand(installUrl);
+  const proc = Bun.spawn([command, ...args], {
+    stdout: "inherit",
+    stderr: "inherit",
+    stdin: "inherit",
+  });
 
   const exitCode = await proc.exited;
 
