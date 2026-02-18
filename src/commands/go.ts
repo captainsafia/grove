@@ -66,7 +66,10 @@ async function navigateToWorktree(worktree: Worktree, options: GoCommandOptions)
 
   // Normal mode: spawn an interactive shell
   // Get the user's default shell
-  const shell = process.env.SHELL || "/bin/sh";
+  const isWindows = process.platform === "win32";
+  const shell = isWindows
+    ? "powershell"
+    : (process.env.SHELL || "/bin/sh");
 
   console.log(chalk.green("✓ Entering worktree:"), chalk.bold(worktree.branch));
   console.log(chalk.gray("  Path:"), worktree.path);
