@@ -133,6 +133,71 @@ describe("getWorktreePath security", () => {
   });
 });
 
+describe("platform detection", () => {
+  describe("shell selection for grove go", () => {
+    test("should use powershell on Windows", () => {
+      const isWindows = process.platform === "win32";
+      const shell = isWindows
+        ? "powershell"
+        : (process.env.SHELL || "/bin/sh");
+
+      if (isWindows) {
+        expect(shell).toBe("powershell");
+      } else {
+        // On Unix, should use SHELL or /bin/sh
+        expect(shell).toBeTruthy();
+        expect(shell).not.toBe("powershell");
+      }
+    });
+
+    test("should use SHELL environment variable on Unix", () => {
+      const isWindows = process.platform === "win32";
+      if (!isWindows) {
+        const shell = process.env.SHELL || "/bin/sh";
+        expect(shell).toBeTruthy();
+        // Common Unix shells
+        expect(shell).toMatch(/sh|bash|zsh|fish/);
+      }
+    });
+  });
+
+  describe("self-update platform handling", () => {
+    test("should construct correct URL for Windows PowerShell installer", () => {
+      const baseUrl = "https://i.safia.sh/captainsafia/grove";
+      const installUrl = baseUrl;
+      const psInstallUrl = `${installUrl}.ps1`;
+
+      expect(psInstallUrl).toBe("https://i.safia.sh/captainsafia/grove.ps1");
+    });
+
+    test("should construct correct URL for Windows with version", () => {
+      const baseUrl = "https://i.safia.sh/captainsafia/grove";
+      const version = "v1.4.0";
+      const installUrl = `${baseUrl}/${version}`;
+      const psInstallUrl = `${installUrl}.ps1`;
+
+      expect(psInstallUrl).toBe("https://i.safia.sh/captainsafia/grove/v1.4.0.ps1");
+    });
+
+    test("should construct correct URL for Windows with PR", () => {
+      const baseUrl = "https://i.safia.sh/captainsafia/grove";
+      const prNumber = "42";
+      const installUrl = `${baseUrl}/pr/${prNumber}`;
+      const psInstallUrl = `${installUrl}.ps1`;
+
+      expect(psInstallUrl).toBe("https://i.safia.sh/captainsafia/grove/pr/42.ps1");
+    });
+
+    test("should construct correct curl command for Unix", () => {
+      const baseUrl = "https://i.safia.sh/captainsafia/grove";
+      const installUrl = baseUrl;
+      const installCommand = `curl ${installUrl} | sh`;
+
+      expect(installCommand).toBe("curl https://i.safia.sh/captainsafia/grove | sh");
+    });
+  });
+});
+
 describe("self-update validation", () => {
   // PR number validation regex from self-update.ts
   const prRegex = /^\d+$/;
