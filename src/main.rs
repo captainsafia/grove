@@ -108,7 +108,24 @@ enum Commands {
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(e) => {
+            match e.kind() {
+                clap::error::ErrorKind::InvalidSubcommand => {
+                    eprintln!("{} Invalid command. Use --help for usage information.", "Error:".red());
+                    std::process::exit(1);
+                }
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+                    // Let clap handle --help and --version normally
+                    e.exit();
+                }
+                _ => {
+                    e.exit();
+                }
+            }
+        }
+    };
 
     match cli.command {
         Some(Commands::Add { name, track }) => {
