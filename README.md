@@ -84,6 +84,23 @@ Track a remote branch:
 grove add feature/new-feature --track origin/feature/new-feature
 ```
 
+To copy files when creating a worktree, configure copy rules in a project-level `.groverc` (JSON) file:
+
+```json
+{
+  "copy": {
+    "from": "main",
+    "include": [".env", "apps/*/.env"],
+    "exclude": ["apps/web/.env.local"]
+  }
+}
+```
+
+- `copy.from`: source worktree name (for example `main`) or `cwd`
+- `copy.include`: required patterns to copy (bare names like `.env` or `Taskfile.yaml` are recursive, like `**/.env` and `**/Taskfile.yaml`)
+- `copy.exclude`: optional glob patterns to skip
+- `.git` is always excluded
+
 ### Remove a worktree
 
 Remove a worktree:

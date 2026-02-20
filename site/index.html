@@ -798,6 +798,15 @@ $ grove go main`;
                     <pre><code>grove add feature-branch</code></pre>
                     <p>With tracking for a remote branch:</p>
                     <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
+                    <p>Copy behavior is configured in <code>.groverc</code> (JSON):</p>
+                    <pre><code>{
+  "copy": {
+    "from": "main",
+    "include": [".env", "apps/*/.env"],
+    "exclude": ["apps/web/.env.local"]
+  }
+}</code></pre>
+                    <p>Note: bare names in <code>include</code> (like <code>.env</code> or <code>Taskfile.yaml</code>) are treated recursively.</p>
                 </div>
 
                 <div class="command-group">
