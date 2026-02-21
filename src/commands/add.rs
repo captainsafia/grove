@@ -4,11 +4,6 @@ use std::path::{Path, PathBuf};
 use crate::git::{add_worktree, discover_repo, project_root};
 
 pub fn run(name: &str, track: Option<&str>) {
-    if name.is_empty() || name.trim().is_empty() {
-        eprintln!("{} Branch name is required", "Error:".red());
-        std::process::exit(1);
-    }
-
     let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {

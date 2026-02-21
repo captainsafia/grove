@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::git::clone_bare_repository;
-use crate::utils::{extract_repo_name, find_grove_repo, is_valid_git_url};
+use crate::utils::{extract_repo_name, find_grove_repo};
 
 pub fn run(git_url: &str) {
     // Check if we're inside an existing grove repository
@@ -12,15 +12,6 @@ pub fn run(git_url: &str) {
             "{} Cannot initialize grove inside an existing grove repository.\nDetected grove repository at: {}\n\nTo create a new grove setup, run 'grove init' from outside this directory hierarchy.",
             "Error:".red(),
             existing.display()
-        );
-        std::process::exit(1);
-    }
-
-    // Validate git URL format
-    if !is_valid_git_url(git_url) {
-        eprintln!(
-            "{} Invalid git URL format. Supported formats:\n  - HTTPS: https://github.com/user/repo.git\n  - SSH: git@github.com:user/repo.git\n  - SSH: ssh://git@github.com/user/repo.git",
-            "Error:".red()
         );
         std::process::exit(1);
     }

@@ -1,41 +1,9 @@
 use colored::Colorize;
-use regex::Regex;
 use std::process::Command;
 
 use crate::utils::get_self_update_command;
-pub fn run(version: Option<&str>, pr: Option<&str>) {
-    if version.is_some() && pr.is_some() {
-        eprintln!(
-            "{} Cannot specify both version and --pr option",
-            "Error:".red()
-        );
-        std::process::exit(1);
-    }
 
-    // Validate PR number
-    if let Some(pr_num) = pr {
-        let re = Regex::new(r"^\d+$").unwrap();
-        if !re.is_match(pr_num) {
-            eprintln!(
-                "{} Invalid PR number: must be a positive integer",
-                "Error:".red()
-            );
-            std::process::exit(1);
-        }
-    }
-
-    // Validate version format
-    if let Some(ver) = version {
-        let re = Regex::new(r"^v?\d+\.\d+\.\d+(-[\w.]+)?$").unwrap();
-        if !re.is_match(ver) {
-            eprintln!(
-                "{} Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)",
-                "Error:".red()
-            );
-            std::process::exit(1);
-        }
-    }
-
+pub fn run(version: Option<&str>, pr: Option<u64>) {
     let base_url = "https://i.safia.sh/captainsafia/grove";
     let install_url = if let Some(pr_num) = pr {
         format!("{}/pr/{}", base_url, pr_num)

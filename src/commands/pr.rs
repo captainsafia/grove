@@ -3,15 +3,7 @@ use std::process::Command;
 
 use crate::git::{add_worktree, discover_repo, find_worktree_by_name, project_root, repo_path};
 
-pub fn run(pr_number: &str) {
-    let pr_num: u64 = match pr_number.parse() {
-        Ok(n) if n > 0 => n,
-        _ => {
-            eprintln!("{} Invalid PR number: {}", "Error:".red(), pr_number);
-            std::process::exit(1);
-        }
-    };
-
+pub fn run(pr_num: u64) {
     // Check gh CLI is available
     if Command::new("gh").arg("--version").output().is_err() {
         eprintln!(

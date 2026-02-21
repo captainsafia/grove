@@ -18,17 +18,8 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
     }
 
     // Parse the older-than duration if provided
-    let age_threshold_ms = if let Some(duration_str) = older_than {
-        match parse_duration(duration_str) {
-            Ok(ms) => Some(ms),
-            Err(e) => {
-                eprintln!("{} {}", "Error:".red(), e);
-                std::process::exit(1);
-            }
-        }
-    } else {
-        None
-    };
+    let age_threshold_ms =
+        older_than.map(|duration_str| parse_duration(duration_str).expect("validated by clap"));
 
     let repo = match discover_repo() {
         Ok(m) => m,

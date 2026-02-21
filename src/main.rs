@@ -1,12 +1,58 @@
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use regex::Regex;
+use std::path::Path;
 
 mod commands;
 mod git;
 mod models;
 mod utils;
 
+use crate::utils::{is_valid_git_url, parse_duration};
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+fn validate_branch_name(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("Branch name is required".to_string());
+    }
+    if trimmed.contains("..") || Path::new(trimmed).is_absolute() {
+        return Err("Invalid branch name: contains path traversal characters".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_git_url(value: &str) -> Result<String, String> {
+    if is_valid_git_url(value) {
+        Ok(value.to_string())
+    } else {
+        Err("Invalid git URL format. Supported formats:\n  - HTTPS: https://github.com/user/repo.git\n  - SSH: git@github.com:user/repo.git\n  - SSH: ssh://git@github.com/user/repo.git".to_string())
+    }
+}
+
+fn validate_pr_number(value: &str) -> Result<u64, String> {
+    let parsed: u64 = value
+        .parse()
+        .map_err(|_| format!("Invalid PR number: {}", value))?;
+    if parsed == 0 {
+        return Err("Invalid PR number: must be a positive integer".to_string());
+    }
+    Ok(parsed)
+}
+
+fn validate_version(value: &str) -> Result<String, String> {
+    let re = Regex::new(r"^v?\d+\.\d+\.\d+(-[\w.]+)?$").unwrap();
+    if re.is_match(value) {
+        Ok(value.to_string())
+    } else {
+        Err("Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)".to_string())
+    }
+}
+
+fn validate_duration(value: &str) -> Result<String, String> {
+    parse_duration(value).map(|_| value.to_string())
+}
 
 #[derive(Parser)]
 #[command(name = "grove", about = "Grove is a Git worktree management tool", version = VERSION)]
@@ -20,6 +66,7 @@ enum Commands {
     /// Create a new worktree
     Add {
         /// Branch name (creates new branch if it doesn't exist)
+        #[arg(value_parser = validate_branch_name)]
         name: String,
         /// Set up tracking for the specified remote branch
         #[arg(short = 't', long = "track")]
@@ -36,6 +83,7 @@ enum Commands {
     /// Initialize a new worktree setup
     Init {
         /// Git repository URL to clone
+        #[arg(value_parser = validate_git_url)]
         git_url: String,
     },
     /// List all worktrees
@@ -57,7 +105,8 @@ enum Commands {
     /// Checkout a GitHub pull request into a new worktree
     Pr {
         /// Pull request number
-        pr_number: String,
+        #[arg(value_parser = validate_pr_number)]
+        pr_number: u64,
     },
     /// Remove worktrees for merged branches
     Prune {
@@ -71,7 +120,7 @@ enum Commands {
         #[arg(long)]
         base: Option<String>,
         /// Prune worktrees older than specified duration (e.g., 30d, 2w, 6M, 1y)
-        #[arg(long = "older-than")]
+        #[arg(long = "older-than", value_parser = validate_duration)]
         older_than: Option<String>,
     },
     /// Remove a worktree
@@ -89,14 +138,16 @@ enum Commands {
     /// Update grove to a specific version or PR
     SelfUpdate {
         /// Version to update to (e.g., v1.0.0 or 1.0.0). Defaults to latest.
+        #[arg(value_parser = validate_version)]
         version: Option<String>,
         /// Update to a specific PR build
-        #[arg(long)]
-        pr: Option<String>,
+        #[arg(long, value_parser = validate_pr_number, conflicts_with = "version")]
+        pr: Option<u64>,
     },
     /// Output shell integration function for grove go
     ShellInit {
         /// Shell type: bash, zsh, fish, pwsh, or powershell
+        #[arg(value_parser = ["bash", "zsh", "fish", "pwsh", "powershell"])]
         shell: String,
     },
     /// Sync the bare clone with the latest changes from origin
@@ -149,7 +200,7 @@ fn main() {
             commands::list::run(details, dirty, locked, json);
         }
         Some(Commands::Pr { pr_number }) => {
-            commands::pr::run(&pr_number);
+            commands::pr::run(pr_number);
         }
         Some(Commands::Prune {
             dry_run,
@@ -163,7 +214,7 @@ fn main() {
             commands::remove::run(name.as_deref(), force, yes);
         }
         Some(Commands::SelfUpdate { version, pr }) => {
-            commands::self_update::run(version.as_deref(), pr.as_deref());
+            commands::self_update::run(version.as_deref(), pr);
         }
         Some(Commands::ShellInit { shell }) => {
             commands::shell_init::run(&shell);
