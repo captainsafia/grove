@@ -661,3 +661,52 @@ export async function checkForUpdates(currentVersion: string): Promise<void> {
     // Silently fail - don't block CLI execution for update checks
   }
 }
+
+// ============================================================================
+// Platform Detection
+// ============================================================================
+
+export type Platform = NodeJS.Platform;
+
+/**
+ * Check if the platform is Windows.
+ */
+export function isWindows(platform: Platform = process.platform): boolean {
+  return platform === "win32";
+}
+
+/**
+ * Get the shell command for navigating to a directory.
+ * On Windows, uses PowerShell. On Unix, uses $SHELL or /bin/sh.
+ */
+export function getShellForPlatform(
+  platform: Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  if (isWindows(platform)) {
+    return "powershell";
+  }
+  return env.SHELL || "/bin/sh";
+}
+
+/**
+ * Get the command and arguments for running the self-update installer.
+ * On Windows, uses PowerShell with Invoke-RestMethod.
+ * On Unix, uses sh with curl.
+ */
+export function getSelfUpdateCommand(
+  installUrl: string,
+  platform: Platform = process.platform
+): { command: string; args: string[] } {
+  if (isWindows(platform)) {
+    const psInstallUrl = `${installUrl}.ps1`;
+    return {
+      command: "powershell",
+      args: ["-NoProfile", "-Command", `irm ${psInstallUrl} | iex`],
+    };
+  }
+  return {
+    command: "sh",
+    args: ["-c", `curl ${installUrl} | sh`],
+  };
+}

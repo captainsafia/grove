@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import * as path from "path";
+import { isWindows, getShellForPlatform, getSelfUpdateCommand } from "../../src/utils";
 
 // Test the getWorktreePath logic from add.ts
 // We replicate the function here since it's not exported
@@ -129,6 +130,92 @@ describe("getWorktreePath security", () => {
     test("should accept deeply nested branch names", () => {
       const result = getWorktreePath("user/feature/sub-feature");
       expect(result).toBeTruthy();
+    });
+  });
+});
+
+describe("isWindows", () => {
+  test("should return true for win32", () => {
+    expect(isWindows("win32")).toBe(true);
+  });
+
+  test("should return false for linux", () => {
+    expect(isWindows("linux")).toBe(false);
+  });
+
+  test("should return false for darwin", () => {
+    expect(isWindows("darwin")).toBe(false);
+  });
+});
+
+describe("getShellForPlatform", () => {
+  test("should return powershell on Windows", () => {
+    const shell = getShellForPlatform("win32", {});
+    expect(shell).toBe("powershell");
+  });
+
+  test("should return SHELL env var on Unix when set", () => {
+    const shell = getShellForPlatform("linux", { SHELL: "/bin/zsh" });
+    expect(shell).toBe("/bin/zsh");
+  });
+
+  test("should return /bin/sh on Unix when SHELL is not set", () => {
+    const shell = getShellForPlatform("darwin", {});
+    expect(shell).toBe("/bin/sh");
+  });
+
+  test("should ignore SHELL env var on Windows", () => {
+    const shell = getShellForPlatform("win32", { SHELL: "/bin/bash" });
+    expect(shell).toBe("powershell");
+  });
+});
+
+describe("getSelfUpdateCommand", () => {
+  const baseUrl = "https://i.safia.sh/captainsafia/grove";
+
+  describe("Windows", () => {
+    test("should use PowerShell with .ps1 URL for base install", () => {
+      const result = getSelfUpdateCommand(baseUrl, "win32");
+      expect(result.command).toBe("powershell");
+      expect(result.args).toContain("-NoProfile");
+      expect(result.args).toContain("-Command");
+      expect(result.args.some(arg => arg.includes(".ps1"))).toBe(true);
+      expect(result.args.some(arg => arg.includes("irm"))).toBe(true);
+    });
+
+    test("should append .ps1 to versioned URL", () => {
+      const result = getSelfUpdateCommand(`${baseUrl}/v1.4.0`, "win32");
+      expect(result.args.some(arg => arg.includes("v1.4.0.ps1"))).toBe(true);
+    });
+
+    test("should append .ps1 to PR URL", () => {
+      const result = getSelfUpdateCommand(`${baseUrl}/pr/42`, "win32");
+      expect(result.args.some(arg => arg.includes("pr/42.ps1"))).toBe(true);
+    });
+  });
+
+  describe("Unix", () => {
+    test("should use sh with curl for base install", () => {
+      const result = getSelfUpdateCommand(baseUrl, "linux");
+      expect(result.command).toBe("sh");
+      expect(result.args).toContain("-c");
+      expect(result.args.some(arg => arg.includes("curl"))).toBe(true);
+      expect(result.args.some(arg => arg.includes("| sh"))).toBe(true);
+    });
+
+    test("should work on darwin", () => {
+      const result = getSelfUpdateCommand(baseUrl, "darwin");
+      expect(result.command).toBe("sh");
+    });
+
+    test("should include version in curl command", () => {
+      const result = getSelfUpdateCommand(`${baseUrl}/v1.4.0`, "linux");
+      expect(result.args.some(arg => arg.includes("v1.4.0"))).toBe(true);
+    });
+
+    test("should include PR in curl command", () => {
+      const result = getSelfUpdateCommand(`${baseUrl}/pr/42`, "linux");
+      expect(result.args.some(arg => arg.includes("pr/42"))).toBe(true);
     });
   });
 });

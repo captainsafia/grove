@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { getSelfUpdateCommand } from "../utils";
 
 interface SelfUpdateCommandOptions {
   pr?: string;
@@ -46,7 +47,7 @@ async function runSelfUpdate(
     throw new Error("Invalid version format: must be semver (e.g., v1.0.0 or 1.0.0)");
   }
 
-  // Construct the install command using the i.safia.sh installer
+  // Construct the install URL using the i.safia.sh installer
   const baseUrl = "https://i.safia.sh/captainsafia/grove";
   let installUrl = baseUrl;
 
@@ -59,11 +60,8 @@ async function runSelfUpdate(
     installUrl = `${baseUrl}/${versionTag}`;
   }
 
-  // Construct the install command
-  const installCommand = `curl ${installUrl} | sh`;
-
-  // Execute the install command
-  const proc = Bun.spawn(["sh", "-c", installCommand], {
+  const { command, args } = getSelfUpdateCommand(installUrl);
+  const proc = Bun.spawn([command, ...args], {
     stdout: "inherit",
     stderr: "inherit",
     stdin: "inherit",

@@ -3,7 +3,7 @@ import { spawn } from "child_process";
 import chalk from "chalk";
 import { WorktreeManager } from "../git/WorktreeManager";
 import { getShellSetupInstructions, markShellTipShown, shouldShowShellTip } from "./shell-init";
-import { handleCommandError } from "../utils";
+import { handleCommandError, getShellForPlatform } from "../utils";
 import { Worktree } from "../models";
 import { pickWorktree } from "./worktree-picker";
 
@@ -65,8 +65,7 @@ async function navigateToWorktree(worktree: Worktree, options: GoCommandOptions)
   }
 
   // Normal mode: spawn an interactive shell
-  // Get the user's default shell
-  const shell = process.env.SHELL || "/bin/sh";
+  const shell = getShellForPlatform();
 
   console.log(chalk.green("✓ Entering worktree:"), chalk.bold(worktree.branch));
   console.log(chalk.gray("  Path:"), worktree.path);
