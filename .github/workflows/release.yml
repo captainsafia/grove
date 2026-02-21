@@ -27,6 +27,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          components: rustfmt
           targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
 
       - name: Install cross-compilation tools
@@ -47,6 +48,9 @@ jobs:
           echo "Setting version to: ${VERSION}"
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+
+      - name: Format check
+        run: cargo fmt --all -- --check
 
       - name: Build for Linux x64
         run: cargo build --release --target x86_64-unknown-linux-gnu

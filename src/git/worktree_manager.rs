@@ -10,270 +10,269 @@ use crate::utils::{discover_bare_clone, get_project_root};
 pub const MAIN_BRANCHES: &[&str] = &["main", "master"];
 pub const DETACHED_HEAD: &str = "detached HEAD";
 
-pub struct WorktreeManager {
+pub struct RepoContext {
     repo_path: PathBuf,
-    project_root: Option<PathBuf>,
+    project_root: PathBuf,
 }
 
-impl WorktreeManager {
-    pub fn new(repo_path: Option<&Path>) -> Self {
-        let path = repo_path
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-        WorktreeManager {
-            repo_path: path,
-            project_root: None,
-        }
+/// Discover the grove repository and return the repo context.
+pub fn discover_repo() -> Result<RepoContext, String> {
+    let bare_clone_path = discover_bare_clone(None).map_err(|e| e.message)?;
+    let project_root = get_project_root(&bare_clone_path);
+
+    // Cache the discovered path
+    env::set_var("GROVE_REPO", &bare_clone_path);
+
+    Ok(RepoContext {
+        repo_path: bare_clone_path,
+        project_root,
+    })
+}
+
+pub fn repo_path(context: &RepoContext) -> &Path {
+    &context.repo_path
+}
+
+pub fn project_root(context: &RepoContext) -> &Path {
+    &context.project_root
+}
+
+fn git_raw(context: &RepoContext, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(&context.repo_path)
+        .output()
+        .map_err(|e| format!("Failed to execute git: {}", e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(stderr.trim().to_string())
+    }
+}
+
+pub fn list_worktrees(context: &RepoContext) -> Result<Vec<Worktree>, String> {
+    let result = git_raw(context, &["worktree", "list", "--porcelain"])
+        .map_err(|e| format!("Failed to list worktrees: {}", e))?;
+
+    let partials = parse_worktree_lines(&result);
+    let mut worktrees = Vec::new();
+    for partial in partials {
+        worktrees.push(complete_worktree_info(partial));
+    }
+    Ok(worktrees)
+}
+
+pub fn branch_exists(context: &RepoContext, branch: &str) -> bool {
+    git_raw(
+        context,
+        &["rev-parse", "--verify", &format!("refs/heads/{}", branch)],
+    )
+    .is_ok()
+}
+
+pub fn is_branch_merged(
+    context: &RepoContext,
+    branch: &str,
+    base_branch: &str,
+) -> Result<bool, String> {
+    // First, check for regular merges
+    let result = git_raw(context, &["branch", "--merged", base_branch])
+        .map_err(|e| format!("Failed to check if branch {} is merged: {}", branch, e))?;
+
+    let merged_branches: Vec<&str> = result
+        .lines()
+        .map(|line| line.trim().trim_start_matches("* ").trim())
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    if merged_branches.contains(&branch) {
+        return Ok(true);
     }
 
-    /// Static factory method that discovers the grove repository and returns an initialized WorktreeManager.
-    pub fn discover() -> Result<Self, String> {
-        let bare_clone_path = discover_bare_clone(None)
-            .map_err(|e| e.message)?;
+    // Check for squash merges
+    is_squash_merged(context, branch, base_branch)
+}
 
-        let project_root = get_project_root(&bare_clone_path);
+fn is_squash_merged(
+    context: &RepoContext,
+    branch: &str,
+    base_branch: &str,
+) -> Result<bool, String> {
+    let branch_files = git_raw(
+        context,
+        &[
+            "diff",
+            "--name-only",
+            &format!("{}...{}", base_branch, branch),
+        ],
+    )
+    .unwrap_or_default();
 
-        // Cache the discovered path
-        env::set_var("GROVE_REPO", &bare_clone_path);
+    let files: Vec<&str> = branch_files.lines().filter(|f| !f.is_empty()).collect();
 
-        Ok(WorktreeManager {
-            repo_path: bare_clone_path,
-            project_root: Some(project_root),
-        })
+    if files.is_empty() {
+        return Ok(true);
     }
 
-    pub fn get_project_root(&self) -> PathBuf {
-        self.project_root
-            .clone()
-            .unwrap_or_else(|| {
-                self.repo_path
-                    .parent()
-                    .unwrap_or(Path::new("/"))
-                    .to_path_buf()
-            })
+    let mut diff_args = vec!["diff", "--name-only", base_branch, branch, "--"];
+    diff_args.extend(files);
+
+    let diff = git_raw(context, &diff_args).unwrap_or_default();
+    Ok(diff.trim().is_empty())
+}
+
+pub fn clone_bare_repository(git_url: &str, target_dir: &str) -> Result<(), String> {
+    let output = Command::new("git")
+        .args(["clone", "--bare", git_url, target_dir])
+        .output()
+        .map_err(|e| format!("Failed to clone repository: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to clone repository: {}", stderr.trim()));
     }
 
-    pub fn get_repo_path(&self) -> &Path {
-        &self.repo_path
+    // Configure fetch refspec
+    let output = Command::new("git")
+        .args([
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/*:refs/remotes/origin/*",
+        ])
+        .current_dir(target_dir)
+        .output()
+        .map_err(|e| format!("Failed to configure repository: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to configure repository: {}", stderr.trim()));
     }
 
-    fn git_raw(&self, args: &[&str]) -> Result<String, String> {
-        let output = Command::new("git")
-            .args(args)
-            .current_dir(&self.repo_path)
-            .output()
-            .map_err(|e| format!("Failed to execute git: {}", e))?;
+    Ok(())
+}
 
-        if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(stderr.trim().to_string())
-        }
-    }
+pub fn add_worktree(
+    context: &RepoContext,
+    worktree_path: &str,
+    branch_name: &str,
+    create_branch: bool,
+    track: Option<&str>,
+) -> Result<(), String> {
+    let mut args = vec!["worktree", "add"];
 
-    pub fn list_worktrees(&self) -> Result<Vec<Worktree>, String> {
-        let result = self
-            .git_raw(&["worktree", "list", "--porcelain"])
-            .map_err(|e| format!("Failed to list worktrees: {}", e))?;
-
-        let partials = parse_worktree_lines(&result);
-        let mut worktrees = Vec::new();
-        for partial in partials {
-            worktrees.push(complete_worktree_info(partial));
-        }
-        Ok(worktrees)
-    }
-
-    pub fn branch_exists(&self, branch: &str) -> bool {
-        self.git_raw(&["rev-parse", "--verify", &format!("refs/heads/{}", branch)])
-            .is_ok()
-    }
-
-    pub fn is_branch_merged(&self, branch: &str, base_branch: &str) -> Result<bool, String> {
-        // First, check for regular merges
-        let result = self
-            .git_raw(&["branch", "--merged", base_branch])
-            .map_err(|e| format!("Failed to check if branch {} is merged: {}", branch, e))?;
-
-        let merged_branches: Vec<&str> = result
-            .lines()
-            .map(|line| line.trim().trim_start_matches("* ").trim())
-            .filter(|line| !line.is_empty())
-            .collect();
-
-        if merged_branches.contains(&branch) {
-            return Ok(true);
-        }
-
-        // Check for squash merges
-        self.is_squash_merged(branch, base_branch)
-    }
-
-    fn is_squash_merged(&self, branch: &str, base_branch: &str) -> Result<bool, String> {
-        let branch_files = self
-            .git_raw(&["diff", "--name-only", &format!("{}...{}", base_branch, branch)])
-            .unwrap_or_default();
-
-        let files: Vec<&str> = branch_files
-            .lines()
-            .filter(|f| !f.is_empty())
-            .collect();
-
-        if files.is_empty() {
-            return Ok(true);
-        }
-
-        let mut diff_args = vec!["diff", "--name-only", base_branch, branch, "--"];
-        diff_args.extend(files);
-
-        let diff = self.git_raw(&diff_args).unwrap_or_default();
-        Ok(diff.trim().is_empty())
-    }
-
-    pub fn clone_bare_repository(&self, git_url: &str, target_dir: &str) -> Result<(), String> {
-        let output = Command::new("git")
-            .args(["clone", "--bare", git_url, target_dir])
-            .output()
-            .map_err(|e| format!("Failed to clone repository: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Failed to clone repository: {}", stderr.trim()));
-        }
-
-        // Configure fetch refspec
-        let output = Command::new("git")
-            .args([
-                "config",
-                "remote.origin.fetch",
-                "+refs/heads/*:refs/remotes/origin/*",
-            ])
-            .current_dir(target_dir)
-            .output()
-            .map_err(|e| format!("Failed to configure repository: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Failed to configure repository: {}", stderr.trim()));
-        }
-
-        Ok(())
-    }
-
-    pub fn add_worktree(
-        &self,
-        worktree_path: &str,
-        branch_name: &str,
-        create_branch: bool,
-        track: Option<&str>,
-    ) -> Result<(), String> {
-        let mut args = vec!["worktree", "add"];
-
-        if create_branch {
-            args.push("-b");
-            args.push(branch_name);
-            if let Some(track_branch) = track {
-                args.push("--track");
-                args.push(track_branch);
-            }
-            args.push(worktree_path);
-            if let Some(track_branch) = track {
-                args.push(track_branch);
-            }
-        } else {
-            args.push(worktree_path);
-            args.push(branch_name);
-        }
-
-        self.git_raw(&args)
-            .map_err(|e| format!("Failed to add worktree: {}", e))?;
-        Ok(())
-    }
-
-    pub fn remove_worktree(&self, worktree_path: &str, force: bool) -> Result<(), String> {
-        let mut args = vec!["worktree", "remove"];
-        if force {
-            args.push("--force");
+    if create_branch {
+        args.push("-b");
+        args.push(branch_name);
+        if let Some(track_branch) = track {
+            args.push("--track");
+            args.push(track_branch);
         }
         args.push(worktree_path);
-
-        self.git_raw(&args)
-            .map_err(|e| format!("Failed to remove worktree: {}", e))?;
-        Ok(())
+        if let Some(track_branch) = track {
+            args.push(track_branch);
+        }
+    } else {
+        args.push(worktree_path);
+        args.push(branch_name);
     }
 
-    pub fn remove_worktrees(
-        &self,
-        worktrees: &[Worktree],
-        force: bool,
-    ) -> (Vec<String>, Vec<(String, String)>) {
-        let mut removed = Vec::new();
-        let mut failed = Vec::new();
+    git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
+    Ok(())
+}
 
-        for wt in worktrees {
-            match self.remove_worktree(&wt.path, force) {
-                Ok(()) => removed.push(wt.path.clone()),
-                Err(e) => failed.push((wt.path.clone(), e)),
-            }
+pub fn remove_worktree(
+    context: &RepoContext,
+    worktree_path: &str,
+    force: bool,
+) -> Result<(), String> {
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(worktree_path);
+
+    git_raw(context, &args).map_err(|e| format!("Failed to remove worktree: {}", e))?;
+    Ok(())
+}
+
+pub fn remove_worktrees(
+    context: &RepoContext,
+    worktrees: &[Worktree],
+    force: bool,
+) -> (Vec<String>, Vec<(String, String)>) {
+    let mut removed = Vec::new();
+    let mut failed = Vec::new();
+
+    for wt in worktrees {
+        match remove_worktree(context, &wt.path, force) {
+            Ok(()) => removed.push(wt.path.clone()),
+            Err(e) => failed.push((wt.path.clone(), e)),
         }
-
-        (removed, failed)
     }
 
-    pub fn get_default_branch(&self) -> Result<String, String> {
-        // Try to get the default branch from the remote HEAD
-        if let Ok(result) = self.git_raw(&["symbolic-ref", "refs/remotes/origin/HEAD"]) {
-            let branch = result.trim().replace("refs/remotes/origin/", "");
-            return Ok(branch);
-        }
+    (removed, failed)
+}
 
-        // Fallback: check if main or master exists
-        if self.branch_exists("main") {
-            return Ok("main".to_string());
-        }
-        if self.branch_exists("master") {
-            return Ok("master".to_string());
-        }
-
-        Err("Could not determine default branch. Please specify with --branch.".to_string())
+pub fn get_default_branch(context: &RepoContext) -> Result<String, String> {
+    // Try to get the default branch from the remote HEAD
+    if let Ok(result) = git_raw(context, &["symbolic-ref", "refs/remotes/origin/HEAD"]) {
+        let branch = result.trim().replace("refs/remotes/origin/", "");
+        return Ok(branch);
     }
 
-    pub fn sync_branch(&self, branch: &str) -> Result<(), String> {
-        self.git_raw(&["fetch", "origin", &format!("{}:{}", branch, branch)])
-            .map_err(|e| format!("Failed to sync branch '{}': {}", branch, e))?;
-        Ok(())
+    // Fallback: check if main or master exists
+    if branch_exists(context, "main") {
+        return Ok("main".to_string());
+    }
+    if branch_exists(context, "master") {
+        return Ok("master".to_string());
     }
 
-    pub fn find_worktree_by_name(&self, name: &str) -> Result<Option<Worktree>, String> {
-        let worktrees = self.list_worktrees()?;
+    Err("Could not determine default branch. Please specify with --branch.".to_string())
+}
 
-        // First, try exact branch name match
-        if let Some(wt) = worktrees.iter().find(|wt| wt.branch == name) {
-            return Ok(Some(wt.clone()));
-        }
+pub fn sync_branch(context: &RepoContext, branch: &str) -> Result<(), String> {
+    git_raw(
+        context,
+        &["fetch", "origin", &format!("{}:{}", branch, branch)],
+    )
+    .map_err(|e| format!("Failed to sync branch '{}': {}", branch, e))?;
+    Ok(())
+}
 
-        // Try matching by directory name
-        if let Some(wt) = worktrees.iter().find(|wt| {
-            Path::new(&wt.path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n == name)
-                .unwrap_or(false)
-        }) {
-            return Ok(Some(wt.clone()));
-        }
+pub fn find_worktree_by_name(
+    context: &RepoContext,
+    name: &str,
+) -> Result<Option<Worktree>, String> {
+    let worktrees = list_worktrees(context)?;
 
-        // Try partial branch name match (suffix matching)
-        if let Some(wt) = worktrees
-            .iter()
-            .find(|wt| wt.branch.ends_with(&format!("/{}", name)))
-        {
-            return Ok(Some(wt.clone()));
-        }
-
-        Ok(None)
+    // First, try exact branch name match
+    if let Some(wt) = worktrees.iter().find(|wt| wt.branch == name) {
+        return Ok(Some(wt.clone()));
     }
+
+    // Try matching by directory name
+    if let Some(wt) = worktrees.iter().find(|wt| {
+        Path::new(&wt.path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == name)
+            .unwrap_or(false)
+    }) {
+        return Ok(Some(wt.clone()));
+    }
+
+    // Try partial branch name match (suffix matching)
+    if let Some(wt) = worktrees
+        .iter()
+        .find(|wt| wt.branch.ends_with(&format!("/{}", name)))
+    {
+        return Ok(Some(wt.clone()));
+    }
+
+    Ok(None)
 }
 
 struct PartialWorktree {
@@ -346,18 +345,10 @@ fn complete_worktree_info(partial: PartialWorktree) -> Worktree {
         .map(|output| !output.stdout.is_empty())
         .unwrap_or(false);
 
-    // Try to get creation time from filesystem
+    // Try to get creation time from filesystem with Unix fallbacks.
     let created_at = fs::metadata(&path)
         .ok()
-        .and_then(|meta| meta.created().ok())
-        .map(|st| {
-            let duration = st
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default();
-            Utc.timestamp_opt(duration.as_secs() as i64, 0)
-                .single()
-                .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap())
-        })
+        .and_then(|meta| metadata_created_at(&meta))
         .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap());
 
     Worktree {
@@ -370,6 +361,39 @@ fn complete_worktree_info(partial: PartialWorktree) -> Worktree {
         is_prunable: partial.is_prunable,
         is_main,
     }
+}
+
+fn system_time_to_datetime(system_time: std::time::SystemTime) -> Option<DateTime<Utc>> {
+    let duration = system_time.duration_since(std::time::UNIX_EPOCH).ok()?;
+    Utc.timestamp_opt(duration.as_secs() as i64, 0).single()
+}
+
+fn metadata_created_at(meta: &fs::Metadata) -> Option<DateTime<Utc>> {
+    if let Ok(st) = meta.created() {
+        return system_time_to_datetime(st);
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let ctime = meta.ctime();
+        if ctime > 0 {
+            return Utc.timestamp_opt(ctime, 0).single();
+        }
+        let mtime = meta.mtime();
+        if mtime > 0 {
+            return Utc.timestamp_opt(mtime, 0).single();
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        if let Ok(st) = meta.modified() {
+            return system_time_to_datetime(st);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -412,7 +436,8 @@ mod tests {
 
     #[test]
     fn parse_master_branch() {
-        let output = "worktree /path/to/master-worktree\nHEAD abc123def456\nbranch refs/heads/master\n";
+        let output =
+            "worktree /path/to/master-worktree\nHEAD abc123def456\nbranch refs/heads/master\n";
         let worktrees = parse_worktree_lines(output);
         assert_eq!(worktrees.len(), 1);
         assert_eq!(worktrees[0].branch.as_deref(), Some("master"));

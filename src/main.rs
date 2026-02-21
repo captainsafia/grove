@@ -113,7 +113,10 @@ fn main() {
         Err(e) => {
             match e.kind() {
                 clap::error::ErrorKind::InvalidSubcommand => {
-                    eprintln!("{} Invalid command. Use --help for usage information.", "Error:".red());
+                    eprintln!(
+                        "{} Invalid command. Use --help for usage information.",
+                        "Error:".red()
+                    );
                     std::process::exit(1);
                 }
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
@@ -170,7 +173,10 @@ fn main() {
         }
         None => {
             // No command provided - show help
-            eprintln!("{} No command provided. Use --help for usage information.", "Error:".red());
+            eprintln!(
+                "{} No command provided. Use --help for usage information.",
+                "Error:".red()
+            );
             std::process::exit(1);
         }
     }

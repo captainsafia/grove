@@ -1,7 +1,7 @@
 use colored::Colorize;
 use std::path::{Path, PathBuf};
 
-use crate::git::WorktreeManager;
+use crate::git::{add_worktree, discover_repo, project_root};
 
 pub fn run(name: &str, track: Option<&str>) {
     if name.is_empty() || name.trim().is_empty() {
@@ -9,7 +9,7 @@ pub fn run(name: &str, track: Option<&str>) {
         std::process::exit(1);
     }
 
-    let manager = match WorktreeManager::discover() {
+    let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -17,8 +17,8 @@ pub fn run(name: &str, track: Option<&str>) {
         }
     };
 
-    let project_root = manager.get_project_root();
-    let worktree_path = match get_worktree_path(name, &project_root) {
+    let project_root = project_root(&repo);
+    let worktree_path = match get_worktree_path(name, project_root) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -30,10 +30,8 @@ pub fn run(name: &str, track: Option<&str>) {
 
     // Try to create worktree for existing branch first, fall back to creating new branch
     let mut is_new_branch = false;
-    if let Err(_existing_err) =
-        manager.add_worktree(&worktree_path_str, name, false, track)
-    {
-        match manager.add_worktree(&worktree_path_str, name, true, track) {
+    if let Err(_existing_err) = add_worktree(&repo, &worktree_path_str, name, false, track) {
+        match add_worktree(&repo, &worktree_path_str, name, true, track) {
             Ok(()) => is_new_branch = true,
             Err(new_err) => {
                 eprintln!(
@@ -67,17 +65,16 @@ pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathB
     }
 
     // Sanitize special characters
-    let sanitized_name = branch_name
-        .replace(['<', '>', ':', '"', '|', '?', '*'], "-");
+    let sanitized_name = branch_name.replace(['<', '>', ':', '"', '|', '?', '*'], "-");
 
     let worktree_path = project_root.join(&sanitized_name);
 
     // Ensure the resolved path is within the project root
-    let resolved_path = worktree_path
-        .canonicalize()
-        .unwrap_or_else(|_| std::fs::canonicalize(project_root)
+    let resolved_path = worktree_path.canonicalize().unwrap_or_else(|_| {
+        std::fs::canonicalize(project_root)
             .unwrap_or_else(|_| project_root.to_path_buf())
-            .join(&sanitized_name));
+            .join(&sanitized_name)
+    });
 
     let resolved_root = project_root
         .canonicalize()
@@ -93,8 +90,8 @@ pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathB
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use regex::Regex;
+    use std::env;
 
     // --- getWorktreePath security tests ---
 

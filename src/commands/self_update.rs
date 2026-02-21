@@ -5,7 +5,10 @@ use std::process::Command;
 use crate::utils::get_self_update_command;
 pub fn run(version: Option<&str>, pr: Option<&str>) {
     if version.is_some() && pr.is_some() {
-        eprintln!("{} Cannot specify both version and --pr option", "Error:".red());
+        eprintln!(
+            "{} Cannot specify both version and --pr option",
+            "Error:".red()
+        );
         std::process::exit(1);
     }
 
@@ -13,7 +16,10 @@ pub fn run(version: Option<&str>, pr: Option<&str>) {
     if let Some(pr_num) = pr {
         let re = Regex::new(r"^\d+$").unwrap();
         if !re.is_match(pr_num) {
-            eprintln!("{} Invalid PR number: must be a positive integer", "Error:".red());
+            eprintln!(
+                "{} Invalid PR number: must be a positive integer",
+                "Error:".red()
+            );
             std::process::exit(1);
         }
     }
@@ -46,9 +52,7 @@ pub fn run(version: Option<&str>, pr: Option<&str>) {
 
     let (command, args) = get_self_update_command(&install_url);
 
-    let status = Command::new(command)
-        .args(args)
-        .status();
+    let status = Command::new(command).args(args).status();
 
     match status {
         Ok(s) if s.success() => {

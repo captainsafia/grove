@@ -1,13 +1,15 @@
 use colored::Colorize;
 use std::process::Command;
 
-use crate::git::WorktreeManager;
+use crate::commands::shell_init::{
+    get_shell_setup_instructions, mark_shell_tip_shown, should_show_shell_tip,
+};
+use crate::git::{discover_repo, find_worktree_by_name, list_worktrees, RepoContext};
 use crate::models::Worktree;
-use crate::commands::shell_init::{should_show_shell_tip, mark_shell_tip_shown, get_shell_setup_instructions};
 use crate::utils::get_shell_for_platform;
 
 pub fn run(name: Option<&str>, path_only: bool) {
-    let manager = match WorktreeManager::discover() {
+    let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -17,9 +19,9 @@ pub fn run(name: Option<&str>, path_only: bool) {
 
     let worktree = if let Some(name) = name {
         if name.trim().is_empty() {
-            pick_or_error(&manager)
+            pick_or_error(&repo)
         } else {
-            match manager.find_worktree_by_name(name) {
+            match find_worktree_by_name(&repo, name) {
                 Ok(Some(wt)) => wt,
                 Ok(None) => {
                     eprintln!(
@@ -36,14 +38,14 @@ pub fn run(name: Option<&str>, path_only: bool) {
             }
         }
     } else {
-        pick_or_error(&manager)
+        pick_or_error(&repo)
     };
 
     navigate_to_worktree(&worktree, path_only);
 }
 
-fn pick_or_error(manager: &WorktreeManager) -> Worktree {
-    let worktrees = match manager.list_worktrees() {
+fn pick_or_error(repo: &RepoContext) -> Worktree {
+    let worktrees = match list_worktrees(repo) {
         Ok(wts) => wts,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);

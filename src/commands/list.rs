@@ -1,11 +1,11 @@
 use colored::Colorize;
 
-use crate::git::WorktreeManager;
+use crate::git::{discover_repo, list_worktrees};
 use crate::models::{Worktree, WorktreeListOptions};
 use crate::utils::{format_created_time, format_path_with_tilde};
 
 pub fn run(details: bool, dirty: bool, locked: bool, json: bool) {
-    let manager = match WorktreeManager::discover() {
+    let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -19,7 +19,7 @@ pub fn run(details: bool, dirty: bool, locked: bool, json: bool) {
         details,
     };
 
-    let worktrees = match manager.list_worktrees() {
+    let worktrees = match list_worktrees(&repo) {
         Ok(wts) => wts,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -108,7 +108,10 @@ fn print_worktree_item(worktree: &Worktree, options: &WorktreeListOptions) {
     let branch_width = std::cmp::max(15, terminal_width * 3 / 10);
 
     let truncated_path = if display_path.len() > path_width {
-        format!("...{}", &display_path[display_path.len() - (path_width - 3)..])
+        format!(
+            "...{}",
+            &display_path[display_path.len() - (path_width - 3)..]
+        )
     } else {
         display_path.clone()
     };
@@ -139,12 +142,12 @@ fn print_worktree_item(worktree: &Worktree, options: &WorktreeListOptions) {
 
 fn terminal_size() -> Option<usize> {
     // Try to get terminal width
-    if let Ok(output) = std::process::Command::new("tput")
-        .arg("cols")
-        .output()
-    {
+    if let Ok(output) = std::process::Command::new("tput").arg("cols").output() {
         if output.status.success() {
-            if let Ok(cols) = String::from_utf8_lossy(&output.stdout).trim().parse::<usize>() {
+            if let Ok(cols) = String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .parse::<usize>()
+            {
                 return Some(cols);
             }
         }

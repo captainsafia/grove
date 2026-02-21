@@ -79,15 +79,11 @@ pub fn is_valid_git_url(url: &str) -> bool {
         return false;
     }
 
-    let patterns = [
-        r"^https?://.+/.+$",
-        r"^git@[^:]+:.+$",
-        r"^ssh://.+/.+$",
-    ];
+    let patterns = [r"^https?://.+/.+$", r"^git@[^:]+:.+$", r"^ssh://.+/.+$"];
 
-    patterns.iter().any(|p| {
-        Regex::new(p).map(|re| re.is_match(url)).unwrap_or(false)
-    })
+    patterns
+        .iter()
+        .any(|p| Regex::new(p).map(|re| re.is_match(url)).unwrap_or(false))
 }
 
 pub fn extract_repo_name(git_url: &str) -> Result<String, String> {
@@ -348,9 +344,7 @@ fn is_bare_repository(repo_path: &Path) -> bool {
         .args(["config", "--get", "core.bare"])
         .current_dir(repo_path)
         .output()
-        .map(|output| {
-            String::from_utf8_lossy(&output.stdout).trim() == "true"
-        })
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "true")
         .unwrap_or(false)
 }
 
@@ -477,7 +471,8 @@ pub fn discover_bare_clone(start_path: Option<&Path>) -> Result<PathBuf, GroveDi
     }
 
     Err(GroveDiscoveryError {
-        message: "Not in a grove repository.\nRun `grove init <git-url>` to create one.".to_string(),
+        message: "Not in a grove repository.\nRun `grove init <git-url>` to create one."
+            .to_string(),
         is_regular_git_repo: false,
     })
 }
@@ -555,6 +550,12 @@ pub fn get_self_update_command(install_url: &str) -> (String, Vec<String>) {
 mod tests {
     use super::*;
     use chrono::Duration;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        ENV_LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     // --- extractRepoName tests ---
 
@@ -776,10 +777,7 @@ mod tests {
         assert_eq!(parse_duration("P3M").unwrap(), 90 * 24 * 60 * 60 * 1000);
         assert_eq!(parse_duration("PT1H").unwrap(), 60 * 60 * 1000);
         assert_eq!(parse_duration("PT30M").unwrap(), 30 * 60 * 1000);
-        assert_eq!(
-            parse_duration("P1DT12H").unwrap(),
-            36 * 60 * 60 * 1000
-        );
+        assert_eq!(parse_duration("P1DT12H").unwrap(), 36 * 60 * 60 * 1000);
         assert_eq!(parse_duration("p30d").unwrap(), 30 * 24 * 60 * 60 * 1000);
     }
 
@@ -849,7 +847,10 @@ mod tests {
 
     #[test]
     fn format_path_with_tilde_not_in_home() {
-        assert_eq!(format_path_with_tilde("/tmp/projects/grove"), "/tmp/projects/grove");
+        assert_eq!(
+            format_path_with_tilde("/tmp/projects/grove"),
+            "/tmp/projects/grove"
+        );
     }
 
     // --- extractBareCloneFromGitdir tests ---
@@ -971,6 +972,7 @@ mod tests {
     #[test]
     #[cfg(not(windows))]
     fn get_shell_for_platform_uses_shell_env() {
+        let _guard = env_lock().lock().unwrap();
         let original = env::var("SHELL").ok();
         env::set_var("SHELL", "/bin/zsh");
         assert_eq!(get_shell_for_platform(), "/bin/zsh");
@@ -984,6 +986,7 @@ mod tests {
     #[test]
     #[cfg(not(windows))]
     fn get_shell_for_platform_falls_back_to_sh() {
+        let _guard = env_lock().lock().unwrap();
         let original = env::var("SHELL").ok();
         env::remove_var("SHELL");
         assert_eq!(get_shell_for_platform(), "/bin/sh");

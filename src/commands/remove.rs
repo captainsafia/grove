@@ -1,10 +1,10 @@
 use colored::Colorize;
 
-use crate::git::WorktreeManager;
+use crate::git::{discover_repo, list_worktrees, remove_worktree};
 use crate::models::Worktree;
 
 pub fn run(name: Option<&str>, force: bool, yes: bool) {
-    let manager = match WorktreeManager::discover() {
+    let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -12,7 +12,7 @@ pub fn run(name: Option<&str>, force: bool, yes: bool) {
         }
     };
 
-    let worktrees = match manager.list_worktrees() {
+    let worktrees = match list_worktrees(&repo) {
         Ok(wts) => wts,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -25,9 +25,7 @@ pub fn run(name: Option<&str>, force: bool, yes: bool) {
             pick_worktree_to_remove(&worktrees)
         } else {
             match worktrees.iter().find(|wt| {
-                wt.branch == name
-                    || wt.path == name
-                    || wt.path.ends_with(&format!("/{}", name))
+                wt.branch == name || wt.path == name || wt.path.ends_with(&format!("/{}", name))
             }) {
                 Some(wt) => wt.clone(),
                 None => {
@@ -100,7 +98,7 @@ pub fn run(name: Option<&str>, force: bool, yes: bool) {
         }
     }
 
-    if let Err(e) = manager.remove_worktree(&worktree.path, force) {
+    if let Err(e) = remove_worktree(&repo, &worktree.path, force) {
         eprintln!("{} {}", "Error:".red(), e);
         std::process::exit(1);
     }

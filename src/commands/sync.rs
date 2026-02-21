@@ -1,9 +1,9 @@
 use colored::Colorize;
 
-use crate::git::WorktreeManager;
+use crate::git::{discover_repo, get_default_branch, list_worktrees, sync_branch};
 
 pub fn run(branch: Option<&str>) {
-    let manager = match WorktreeManager::discover() {
+    let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -14,7 +14,7 @@ pub fn run(branch: Option<&str>) {
     let target_branch = if let Some(b) = branch {
         b.to_string()
     } else {
-        match manager.get_default_branch() {
+        match get_default_branch(&repo) {
             Ok(b) => b,
             Err(e) => {
                 eprintln!("{} {}", "Error:".red(), e);
@@ -24,7 +24,7 @@ pub fn run(branch: Option<&str>) {
     };
 
     // Check if the branch is checked out in any worktree
-    if let Ok(worktrees) = manager.list_worktrees() {
+    if let Ok(worktrees) = list_worktrees(&repo) {
         if worktrees.iter().any(|wt| wt.branch == target_branch) {
             println!(
                 "{}",
@@ -46,7 +46,7 @@ pub fn run(branch: Option<&str>) {
         }
     }
 
-    if let Err(e) = manager.sync_branch(&target_branch) {
+    if let Err(e) = sync_branch(&repo, &target_branch) {
         eprintln!("{} {}", "Error:".red(), e);
         std::process::exit(1);
     }

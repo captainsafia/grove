@@ -1,7 +1,10 @@
 use chrono::Utc;
 use colored::Colorize;
 
-use crate::git::{WorktreeManager, DETACHED_HEAD};
+use crate::git::{
+    discover_repo, get_default_branch, is_branch_merged, list_worktrees, remove_worktrees,
+    DETACHED_HEAD,
+};
 use crate::models::Worktree;
 use crate::utils::parse_duration;
 
@@ -27,7 +30,7 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
         None
     };
 
-    let manager = match WorktreeManager::discover() {
+    let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -40,7 +43,7 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
         if let Some(b) = base {
             b.to_string()
         } else {
-            match manager.get_default_branch() {
+            match get_default_branch(&repo) {
                 Ok(b) => b,
                 Err(e) => {
                     eprintln!("{} {}", "Error:".red(), e);
@@ -52,7 +55,7 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
         String::new()
     };
 
-    let worktrees = match manager.list_worktrees() {
+    let worktrees = match list_worktrees(&repo) {
         Ok(wts) => wts,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -77,7 +80,7 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
             }
             candidates.push(wt.clone());
         } else {
-            match manager.is_branch_merged(&wt.branch, &base_branch) {
+            match is_branch_merged(&repo, &wt.branch, &base_branch) {
                 Ok(true) => candidates.push(wt.clone()),
                 Ok(false) => {}
                 Err(e) => {
@@ -176,7 +179,7 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
 
     println!("{}", "\nRemoving worktrees...".blue());
 
-    let (removed, failed) = manager.remove_worktrees(&candidates, true);
+    let (removed, failed) = remove_worktrees(&repo, &candidates, true);
 
     for path in &removed {
         println!("{}", format!("✓ Removed worktree: {}", path).green());

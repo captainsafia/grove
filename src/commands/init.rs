@@ -2,7 +2,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
-use crate::git::WorktreeManager;
+use crate::git::clone_bare_repository;
 use crate::utils::{extract_repo_name, find_grove_repo, is_valid_git_url};
 
 pub fn run(git_url: &str) {
@@ -51,12 +51,15 @@ pub fn run(git_url: &str) {
 
     // Check if directory already exists
     if Path::new(&bare_repo_dir).exists() {
-        eprintln!("{} Directory {} already exists", "Error:".red(), bare_repo_dir);
+        eprintln!(
+            "{} Directory {} already exists",
+            "Error:".red(),
+            bare_repo_dir
+        );
         std::process::exit(1);
     }
 
-    let manager = WorktreeManager::new(None);
-    if let Err(e) = manager.clone_bare_repository(git_url, &bare_repo_dir) {
+    if let Err(e) = clone_bare_repository(git_url, &bare_repo_dir) {
         // Clean up on failure
         if created_dir {
             let _ = fs::remove_dir_all(&repo_name);
