@@ -507,6 +507,47 @@ pub fn check_for_updates(_current_version: &str) {
 }
 
 // ============================================================================
+// Platform Detection
+// ============================================================================
+
+/// Check if the target platform is Windows.
+pub fn is_windows() -> bool {
+    cfg!(windows)
+}
+
+/// Get the shell command for navigating to a directory.
+/// On Windows, uses PowerShell. On Unix, uses $SHELL or /bin/sh.
+pub fn get_shell_for_platform() -> String {
+    if is_windows() {
+        "powershell".to_string()
+    } else {
+        env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+    }
+}
+
+/// Get the command and arguments for running the self-update installer.
+/// On Windows, uses PowerShell with Invoke-RestMethod.
+/// On Unix, uses sh with curl.
+pub fn get_self_update_command(install_url: &str) -> (String, Vec<String>) {
+    if is_windows() {
+        let ps_install_url = format!("{}.ps1", install_url);
+        (
+            "powershell".to_string(),
+            vec![
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                format!("irm {} | iex", ps_install_url),
+            ],
+        )
+    } else {
+        (
+            "sh".to_string(),
+            vec!["-c".to_string(), format!("curl {} | sh", install_url)],
+        )
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -905,5 +946,70 @@ mod tests {
         };
         assert_eq!(error.message, "Not a grove repo");
         assert!(error.is_regular_git_repo);
+    }
+
+    // --- platform detection tests ---
+
+    #[test]
+    #[cfg(windows)]
+    fn is_windows_true_on_windows() {
+        assert!(is_windows());
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn is_windows_false_on_unix() {
+        assert!(!is_windows());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn get_shell_for_platform_windows() {
+        assert_eq!(get_shell_for_platform(), "powershell");
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn get_shell_for_platform_uses_shell_env() {
+        let original = env::var("SHELL").ok();
+        env::set_var("SHELL", "/bin/zsh");
+        assert_eq!(get_shell_for_platform(), "/bin/zsh");
+        if let Some(value) = original {
+            env::set_var("SHELL", value);
+        } else {
+            env::remove_var("SHELL");
+        }
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn get_shell_for_platform_falls_back_to_sh() {
+        let original = env::var("SHELL").ok();
+        env::remove_var("SHELL");
+        assert_eq!(get_shell_for_platform(), "/bin/sh");
+        if let Some(value) = original {
+            env::set_var("SHELL", value);
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn get_self_update_command_windows() {
+        let (command, args) = get_self_update_command("https://i.safia.sh/captainsafia/grove");
+        assert_eq!(command, "powershell");
+        assert!(args.iter().any(|arg| arg == "-NoProfile"));
+        assert!(args.iter().any(|arg| arg == "-Command"));
+        assert!(args.iter().any(|arg| arg.contains(".ps1")));
+        assert!(args.iter().any(|arg| arg.contains("irm")));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn get_self_update_command_unix() {
+        let (command, args) = get_self_update_command("https://i.safia.sh/captainsafia/grove");
+        assert_eq!(command, "sh");
+        assert!(args.iter().any(|arg| arg == "-c"));
+        assert!(args.iter().any(|arg| arg.contains("curl")));
+        assert!(args.iter().any(|arg| arg.contains("| sh")));
     }
 }

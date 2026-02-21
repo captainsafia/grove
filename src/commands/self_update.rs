@@ -2,6 +2,7 @@ use colored::Colorize;
 use regex::Regex;
 use std::process::Command;
 
+use crate::utils::get_self_update_command;
 pub fn run(version: Option<&str>, pr: Option<&str>) {
     if version.is_some() && pr.is_some() {
         eprintln!("{} Cannot specify both version and --pr option", "Error:".red());
@@ -43,10 +44,10 @@ pub fn run(version: Option<&str>, pr: Option<&str>) {
         base_url.to_string()
     };
 
-    let install_command = format!("curl {} | sh", install_url);
+    let (command, args) = get_self_update_command(&install_url);
 
-    let status = Command::new("sh")
-        .args(["-c", &install_command])
+    let status = Command::new(command)
+        .args(args)
         .status();
 
     match status {

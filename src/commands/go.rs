@@ -1,10 +1,10 @@
 use colored::Colorize;
-use std::env;
 use std::process::Command;
 
 use crate::git::WorktreeManager;
 use crate::models::Worktree;
 use crate::commands::shell_init::{should_show_shell_tip, mark_shell_tip_shown, get_shell_setup_instructions};
+use crate::utils::get_shell_for_platform;
 
 pub fn run(name: Option<&str>, path_only: bool) {
     let manager = match WorktreeManager::discover() {
@@ -90,7 +90,7 @@ fn navigate_to_worktree(worktree: &Worktree, path_only: bool) {
         return;
     }
 
-    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let shell = get_shell_for_platform();
 
     println!(
         "{} {}",
