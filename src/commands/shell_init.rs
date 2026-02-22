@@ -4,10 +4,24 @@ use std::env;
 use crate::utils::{read_config, write_config};
 
 const BASH_ZSH_FUNCTION: &str = r#"grove() {
+  local grove_bin=""
+  if command -v whence >/dev/null 2>&1; then
+    grove_bin=$(whence -p grove 2>/dev/null)
+  fi
+  if [[ -z "$grove_bin" ]] && command -v type >/dev/null 2>&1; then
+    grove_bin=$(type -P grove 2>/dev/null)
+  fi
+  if [[ -z "$grove_bin" ]]; then
+    grove_bin=$(command -v grove 2>/dev/null)
+  fi
+  if [[ -z "$grove_bin" ]]; then
+    grove_bin="grove"
+  fi
+
   if [[ "$1" == "go" ]]; then
     if [[ $# -gt 1 ]]; then
       local output
-      output=$(command grove go "${@:2}" -p 2>&1)
+      output=$("$grove_bin" go "${@:2}" -p 2>&1)
       local exit_code=$?
       if [[ $exit_code -eq 0 && -d "$output" ]]; then
         cd "$output"
@@ -16,18 +30,23 @@ const BASH_ZSH_FUNCTION: &str = r#"grove() {
         return $exit_code
       fi
     else
-      command grove go
+      "$grove_bin" go
       return $?
     fi
   else
-    command grove "$@"
+    "$grove_bin" "$@"
   fi
 }"#;
 
 const FISH_FUNCTION: &str = r#"function grove
+  set -l grove_bin (command -s grove 2>/dev/null)
+  if test -z "$grove_bin"
+    set grove_bin grove
+  end
+
   if test "$argv[1]" = "go"
     if test (count $argv) -gt 1
-      set -l output (command grove go $argv[2..-1] -p 2>&1)
+      set -l output ($grove_bin go $argv[2..-1] -p 2>&1)
       set -l exit_code $status
       if test $exit_code -eq 0 -a -d "$output"
         cd "$output"
@@ -36,19 +55,22 @@ const FISH_FUNCTION: &str = r#"function grove
         return $exit_code
       end
     else
-      command grove go
+      $grove_bin go
       return $status
     end
   else
-    command grove $argv
+    $grove_bin $argv
   end
 end"#;
 
 const POWERSHELL_FUNCTION: &str = r#"function grove {
+    $groveCmd = Get-Command grove.exe -ErrorAction SilentlyContinue
+    $groveBin = if ($null -ne $groveCmd) { $groveCmd.Source } else { 'grove.exe' }
+
     if ($args.Count -gt 0 -and $args[0] -eq 'go') {
         if ($args.Count -gt 1) {
             $goArgs = @('go') + $args[1..($args.Count-1)] + @('-p')
-            $output = & grove.exe @goArgs 2>&1
+            $output = & $groveBin @goArgs 2>&1
             $exitCode = $LASTEXITCODE
             if ($exitCode -eq 0 -and (Test-Path $output -PathType Container)) {
                 Set-Location $output
@@ -57,11 +79,11 @@ const POWERSHELL_FUNCTION: &str = r#"function grove {
                 return $exitCode
             }
         } else {
-            & grove.exe go
+            & $groveBin go
             return $LASTEXITCODE
         }
     } else {
-        & grove.exe @args
+        & $groveBin @args
     }
 }"#;
 
