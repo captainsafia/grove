@@ -20,6 +20,14 @@ fn validate_branch_name(value: &str) -> Result<String, String> {
     if trimmed.contains("..") || Path::new(trimmed).is_absolute() {
         return Err("Invalid branch name: contains path traversal characters".to_string());
     }
+    if trimmed
+        .chars()
+        .any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
+    {
+        return Err(
+            "Invalid branch name: contains prohibited characters (< > : \" | ? *)".to_string(),
+        );
+    }
     Ok(trimmed.to_string())
 }
 

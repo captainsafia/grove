@@ -59,16 +59,22 @@ pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathB
         return Err("Invalid branch name: contains path traversal characters".to_string());
     }
 
-    // Sanitize special characters
-    let sanitized_name = branch_name.replace(['<', '>', ':', '"', '|', '?', '*'], "-");
+    if branch_name
+        .chars()
+        .any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
+    {
+        return Err(
+            "Invalid branch name: contains prohibited characters (< > : \" | ? *)".to_string(),
+        );
+    }
 
-    let worktree_path = project_root.join(&sanitized_name);
+    let worktree_path = project_root.join(branch_name);
 
     // Ensure the resolved path is within the project root
     let resolved_path = worktree_path.canonicalize().unwrap_or_else(|_| {
         std::fs::canonicalize(project_root)
             .unwrap_or_else(|_| project_root.to_path_buf())
-            .join(&sanitized_name)
+            .join(branch_name)
     });
 
     let resolved_root = project_root
@@ -109,52 +115,40 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_angle_brackets() {
+    fn reject_angle_brackets() {
         let project_root = env::current_dir().unwrap();
-        let result = get_worktree_path("feature<test>", &project_root).unwrap();
-        let basename = result.file_name().unwrap().to_str().unwrap();
-        assert!(!basename.contains('<'));
-        assert!(!basename.contains('>'));
+        assert!(get_worktree_path("feature<test>", &project_root).is_err());
+        assert!(get_worktree_path("feature>test", &project_root).is_err());
     }
 
     #[test]
-    fn sanitize_colon() {
+    fn reject_colon() {
         let project_root = env::current_dir().unwrap();
-        let result = get_worktree_path("feature:test", &project_root).unwrap();
-        let basename = result.file_name().unwrap().to_str().unwrap();
-        assert!(!basename.contains(':'));
+        assert!(get_worktree_path("feature:test", &project_root).is_err());
     }
 
     #[test]
-    fn sanitize_quotes() {
+    fn reject_quotes() {
         let project_root = env::current_dir().unwrap();
-        let result = get_worktree_path("feature\"test", &project_root).unwrap();
-        let basename = result.file_name().unwrap().to_str().unwrap();
-        assert!(!basename.contains('"'));
+        assert!(get_worktree_path("feature\"test", &project_root).is_err());
     }
 
     #[test]
-    fn sanitize_pipe() {
+    fn reject_pipe() {
         let project_root = env::current_dir().unwrap();
-        let result = get_worktree_path("feature|test", &project_root).unwrap();
-        let basename = result.file_name().unwrap().to_str().unwrap();
-        assert!(!basename.contains('|'));
+        assert!(get_worktree_path("feature|test", &project_root).is_err());
     }
 
     #[test]
-    fn sanitize_question_mark() {
+    fn reject_question_mark() {
         let project_root = env::current_dir().unwrap();
-        let result = get_worktree_path("feature?test", &project_root).unwrap();
-        let basename = result.file_name().unwrap().to_str().unwrap();
-        assert!(!basename.contains('?'));
+        assert!(get_worktree_path("feature?test", &project_root).is_err());
     }
 
     #[test]
-    fn sanitize_asterisk() {
+    fn reject_asterisk() {
         let project_root = env::current_dir().unwrap();
-        let result = get_worktree_path("feature*test", &project_root).unwrap();
-        let basename = result.file_name().unwrap().to_str().unwrap();
-        assert!(!basename.contains('*'));
+        assert!(get_worktree_path("feature*test", &project_root).is_err());
     }
 
     #[test]

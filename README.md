@@ -15,6 +15,12 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 - Shell integration for seamless directory navigation
 - Self-update to the latest version or PR build
 
+## Platform Support
+
+- Linux (x64, arm64)
+- macOS (x64, arm64)
+- Windows (x64)
+
 ## Installation
 
 ### Quick Install (Linux/macOS)
@@ -23,12 +29,24 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 curl https://i.safia.sh/captainsafia/grove | sh
 ```
 
+### Quick Install (Windows PowerShell)
+
+```powershell
+irm https://i.safia.sh/captainsafia/grove.ps1 | iex
+```
+
 This will download the appropriate binary for your system and install it to `~/.grove/bin`.
 
 To install a specific version:
 
 ```bash
 curl https://i.safia.sh/captainsafia/grove/v1.0.0 | sh
+```
+
+For Windows PowerShell:
+
+```powershell
+irm https://i.safia.sh/captainsafia/grove/v1.0.0.ps1 | iex
 ```
 
 ## Usage
