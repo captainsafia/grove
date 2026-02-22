@@ -194,7 +194,10 @@ jobs:
       - name: Set version
         shell: pwsh
         run: |
-          (Get-Content Cargo.toml) -replace '^version = ".*"', "version = \"${{ needs.build-linux.outputs.version }}\"" | Set-Content Cargo.toml
+          $version = '${{ needs.build-linux.outputs.version }}'
+          (Get-Content Cargo.toml -Raw) `
+            -replace '^(version = ").*(")$', "`$1$version`$2" |
+            Set-Content Cargo.toml
 
       - name: Build for Windows x64
         run: cargo build --release --target x86_64-pc-windows-msvc
