@@ -5,14 +5,19 @@ use crate::utils::{read_config, write_config};
 
 const BASH_ZSH_FUNCTION: &str = r#"grove() {
   if [[ "$1" == "go" ]]; then
-    local output
-    output=$(command grove go "${@:2}" -p 2>&1)
-    local exit_code=$?
-    if [[ $exit_code -eq 0 && -d "$output" ]]; then
-      cd "$output"
+    if [[ $# -gt 1 ]]; then
+      local output
+      output=$(command grove go "${@:2}" -p 2>&1)
+      local exit_code=$?
+      if [[ $exit_code -eq 0 && -d "$output" ]]; then
+        cd "$output"
+      else
+        echo "$output"
+        return $exit_code
+      fi
     else
-      echo "$output"
-      return $exit_code
+      command grove go
+      return $?
     fi
   else
     command grove "$@"
@@ -21,13 +26,18 @@ const BASH_ZSH_FUNCTION: &str = r#"grove() {
 
 const FISH_FUNCTION: &str = r#"function grove
   if test "$argv[1]" = "go"
-    set -l output (command grove go $argv[2..-1] -p 2>&1)
-    set -l exit_code $status
-    if test $exit_code -eq 0 -a -d "$output"
-      cd "$output"
+    if test (count $argv) -gt 1
+      set -l output (command grove go $argv[2..-1] -p 2>&1)
+      set -l exit_code $status
+      if test $exit_code -eq 0 -a -d "$output"
+        cd "$output"
+      else
+        echo "$output"
+        return $exit_code
+      end
     else
-      echo "$output"
-      return $exit_code
+      command grove go
+      return $status
     end
   else
     command grove $argv
@@ -36,14 +46,19 @@ end"#;
 
 const POWERSHELL_FUNCTION: &str = r#"function grove {
     if ($args.Count -gt 0 -and $args[0] -eq 'go') {
-        $goArgs = @('go') + $args[1..($args.Count-1)] + @('-p')
-        $output = & grove.exe @goArgs 2>&1
-        $exitCode = $LASTEXITCODE
-        if ($exitCode -eq 0 -and (Test-Path $output -PathType Container)) {
-            Set-Location $output
+        if ($args.Count -gt 1) {
+            $goArgs = @('go') + $args[1..($args.Count-1)] + @('-p')
+            $output = & grove.exe @goArgs 2>&1
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0 -and (Test-Path $output -PathType Container)) {
+                Set-Location $output
+            } else {
+                Write-Output $output
+                return $exitCode
+            }
         } else {
-            Write-Output $output
-            return $exitCode
+            & grove.exe go
+            return $LASTEXITCODE
         }
     } else {
         & grove.exe @args

@@ -9,6 +9,18 @@ use crate::models::Worktree;
 use crate::utils::get_shell_for_platform;
 
 pub fn run(name: Option<&str>, path_only: bool) {
+    if path_only
+        && name.map(|n| n.trim().is_empty()).unwrap_or(true)
+        && !atty::is(atty::Stream::Stdin)
+    {
+        eprintln!(
+            "{} {}",
+            "Error:".red(),
+            "Interactive selection requires a TTY. Provide a branch name when using --path-only."
+        );
+        std::process::exit(1);
+    }
+
     let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
