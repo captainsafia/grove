@@ -2,7 +2,7 @@ Instructions for coding agents working on the Grove repository.
 
 ## Project Overview
 
-Grove is a CLI tool written in Rust that manages Git worktrees. It targets Linux and macOS platforms.
+Grove is a CLI tool written in Rust that manages Git worktrees. It targets Linux, macOS, and Windows platforms.
 
 **Key technologies:**
 - Language: Rust (2021 edition)
@@ -246,5 +246,6 @@ mod tests {
 Grove supports:
 - Linux (x64, arm64)
 - macOS (x64, arm64)
+- Windows (x64)
 
-Windows is not supported. Do not add Windows-specific code or workarounds.
+Prefer cross-platform implementations when adding features, and avoid Unix-only command assumptions in user-facing workflows.
