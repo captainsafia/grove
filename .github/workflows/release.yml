@@ -280,7 +280,6 @@ jobs:
             ./executables/grove-darwin-x64
             ./executables/grove-darwin-arm64
             ./executables/grove-windows-x64.exe
-            ./executables/grove-windows-x64.exe
 
   release:
     name: Release
