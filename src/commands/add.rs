@@ -59,7 +59,7 @@ pub fn run(name: &str, track: Option<&str>) {
     } else {
         println!("{} {}", "✓ Created worktree:".green(), name.bold());
     }
-    println!("  {}", format!("Path: {}", worktree_path_str).dimmed());
+    println!("{}", format!("Path: {}", worktree_path_str).dimmed());
 
     let repo_config = match read_repo_config(project_root) {
         Ok(config) => config,
