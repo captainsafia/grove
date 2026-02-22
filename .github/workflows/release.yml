@@ -299,23 +299,20 @@ jobs:
       - name: Get previous tag
         id: prev_tag
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+          CURRENT_TAG="${GITHUB_REF#refs/tags/}"
+          PREV_TAG=$(git tag --list 'v*' --sort=version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | awk -v current="${CURRENT_TAG}" '$0==current{print prev; exit} {prev=$0}')
           echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
         id: changelog
-        uses: warpdotdev/warp-agent-action@main
+        uses: warpdotdev/oz-agent-action@v1
         with:
+          skill: generate-changelog
           prompt: |
-            Generate a changelog for the release ${{ github.ref_name }}.
-
-            1. Use git to get the list of commits between ${{ steps.prev_tag.outputs.PREV_TAG || 'the beginning of the repository' }} and ${{ github.ref_name }}.
-            2. Format the output as a markdown bullet list.
-            3. Each bullet point should be a natural language description of the change, not just the raw commit message. Rewrite commit messages to be clear, user-friendly descriptions.
-            4. Include the category (feature, bug fix, documentation, etc.) at the start of each bullet point based on commit message prefixes like "feat:", "fix:", "docs:", "chore:", etc.
-            5. If there is no previous tag, include all commits up to ${{ github.ref_name }}.
-
-            Output only the formatted changelog markdown, nothing else.
+            Generate the changelog for the release ${{ github.ref_name }} using the
+            previous tag ${{ steps.prev_tag.outputs.PREV_TAG || 'the beginning of the repository' }}.
           warp_api_key: ${{ secrets.WARP_API_KEY }}
 
       - name: Create GitHub Release
@@ -342,9 +339,11 @@ jobs:
             | macOS | ARM64 | `grove-darwin-arm64` (signed & notarized) |
             | Windows | x64 | `grove-windows-x64.exe` |
 
-            ## Changes
+            ## Changelog
 
-            ${{ steps.changelog.outputs.agent_output }}
+            View the full changelog for this release:
+
+            https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md#${{ github.ref_name }}
           draft: false
           prerelease: false
           files: |
