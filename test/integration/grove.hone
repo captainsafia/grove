@@ -38,7 +38,7 @@ TEST "grove init with invalid URL shows error"
 ENV TEST_DIR=/tmp/grove-non-repo-test
 RUN setup: rm -rf $TEST_DIR && mkdir -p $TEST_DIR
 RUN cd $TEST_DIR && grove init not-a-valid-url
-ASSERT exit_code == 1
+ASSERT exit_code == 2
 ASSERT stderr contains "Invalid git URL format"
 
 TEST "grove add without branch name shows error"
