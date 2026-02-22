@@ -1,0 +1,29 @@
+[package]
+name = "grove"
+version = "1.4.0"
+edition = "2021"
+description = "A CLI tool for managing Git worktrees"
+license = "MIT"
+repository = "https://github.com/captainsafia/grove"
+homepage = "https://safia.rocks/grove"
+keywords = ["git", "worktree", "cli"]
+
+[[bin]]
+name = "grove"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+dirs = "6"
+atty = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

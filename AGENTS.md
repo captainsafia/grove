@@ -2,39 +2,41 @@ Instructions for coding agents working on the Grove repository.
 
 ## Project Overview
 
-Grove is a CLI tool written in TypeScript that manages Git worktrees. It runs on [Bun](https://bun.sh) and targets Linux and macOS platforms.
+Grove is a CLI tool written in Rust that manages Git worktrees. It targets Linux and macOS platforms.
 
 **Key technologies:**
-- Runtime: Bun
-- Language: TypeScript (strict mode)
-- CLI Framework: Commander.js
-- Git Operations: simple-git library
-- Testing: Bun's built-in test runner
+- Language: Rust (2021 edition)
+- CLI Framework: clap (derive macros)
+- Git Operations: git CLI shell-outs via `std::process::Command`
+- Terminal UI: dialoguer (fuzzy-select), colored
+- Serialization: serde, serde_json
+- Testing: Rust's built-in test framework (`cargo test`)
 
 ## Repository Structure
 
 ```
 src/
-├── index.ts              # CLI entry point, command registration
+├── main.rs               # CLI entry point, clap command registration
+├── models.rs             # Worktree struct, option types
+├── utils.rs              # Helper functions (discovery, formatting, config)
 ├── commands/             # One file per CLI command
-│   ├── add.ts
-│   ├── go.ts
-│   ├── init.ts
-│   ├── list.ts
-│   ├── prune.ts
-│   ├── remove.ts
-│   ├── self-update.ts
-│   └── sync.ts
-├── git/
-│   └── WorktreeManager.ts  # Core Git worktree operations
-├── models/
-│   └── index.ts          # TypeScript interfaces
-└── utils/
-    └── index.ts          # Helper functions
+│   ├── mod.rs
+│   ├── add.rs
+│   ├── go.rs
+│   ├── init.rs
+│   ├── list.rs
+│   ├── pr.rs
+│   ├── prune.rs
+│   ├── remove.rs
+│   ├── self_update.rs
+│   ├── shell_init.rs
+│   └── sync.rs
+└── git/
+    ├── mod.rs
+    └── worktree_manager.rs  # Core Git worktree operations
 
 test/
-├── unit/                 # Unit tests
-└── integration/          # Integration tests
+└── integration/          # Hone integration tests
 
 site/                     # GitHub Pages website
 ├── index.html            # Landing page
@@ -44,32 +46,26 @@ site/                     # GitHub Pages website
 ## Development Commands
 
 ```bash
-# Install dependencies
-bun install
+# Build debug binary
+cargo build
 
-# Run in development mode
-bun run dev
+# Build optimized release binary
+cargo build --release
 
-# Type check
-bun run typecheck
+# Run directly in development
+cargo run -- <command>
+
+# Type check without building
+cargo check
 
 # Run all tests
-bun test
+cargo test
 
-# Run only unit tests
-bun run test:unit
-
-# Run only integration tests
-bun run test:integration
-
-# Build to dist/
-bun run build
-
-# Build single executable for current platform
-bun run build:compile
+# Clean build artifacts
+cargo clean
 ```
 
-Always run `bun run typecheck` and `bun test` before committing changes.
+Always run `cargo check` and `cargo test` before committing changes.
 
 ## Updating Documentation
 
@@ -79,7 +75,7 @@ The README at the repository root is the primary documentation. When updating:
 
 1. Keep the existing section structure:
    - Features
-   - Installation (multiple methods)
+   - Installation
    - Quick Start
    - Commands (with examples)
    - Development
@@ -172,72 +168,78 @@ with the --pr flag.
 
 ### Command Files
 
-Each command in `src/commands/` exports a factory function:
+Each command in `src/commands/` is implemented as a public function that takes parsed arguments and executes the command logic. Commands are registered in `src/main.rs` using clap's derive macros:
 
-```typescript
-import { Command } from "commander";
-
-export function createExampleCommand(): Command {
-  return new Command("example")
-    .description("Short description of command")
-    .argument("<required>", "Argument description")
-    .option("-f, --flag", "Flag description")
-    .action(async (arg, options) => {
-      // Implementation
-    });
+```rust
+// In src/main.rs
+#[derive(Subcommand)]
+enum Commands {
+    /// Short description of command
+    Example {
+        /// Argument description
+        name: String,
+        /// Flag description
+        #[arg(short, long)]
+        flag: bool,
+    },
 }
 ```
 
-Register new commands in `src/index.ts`:
+Command implementations live in their respective files under `src/commands/`:
 
-```typescript
-import { createExampleCommand } from "./commands/example";
-program.addCommand(createExampleCommand());
+```rust
+// In src/commands/example.rs
+pub fn execute(name: &str, flag: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // Implementation
+    Ok(())
+}
 ```
 
 ### WorktreeManager
 
-Git operations go through `src/git/WorktreeManager.ts`. Extend this class when adding new Git functionality rather than calling git directly in commands.
+Git operations go through `src/git/worktree_manager.rs`. This module uses `std::process::Command` to shell out to the `git` CLI. Extend this module when adding new Git functionality rather than calling git directly in commands.
 
 ### Error Handling
 
-Use the utility functions from `src/utils/index.ts`:
+Use the utility functions from `src/utils.rs`:
 
-```typescript
-import { formatError, formatWarning } from "../utils";
+```rust
+use crate::utils::{format_error, format_warning};
 
-console.log(formatError("Something went wrong"));
-console.log(formatWarning("Proceed with caution"));
+println!("{}", format_error("Something went wrong"));
+println!("{}", format_warning("Proceed with caution"));
 ```
 
-### TypeScript
+### Rust
 
-- Strict mode is enabled - no implicit any
-- Define interfaces in `src/models/index.ts`
-- Use explicit return types for exported functions
+- Edition 2021
+- Define shared types in `src/models.rs`
+- Use explicit return types for public functions
+- Use `#[cfg(test)]` modules for inline unit tests
 
 ### Testing
 
-- Place unit tests in `test/unit/`
-- Place integration tests in `test/integration/`
-- Name test files as `*.test.ts`
-- Use Bun's test utilities from `bun:test`
+- Unit tests are inline `#[cfg(test)]` modules in the source files they test
+- Integration tests are in `test/integration/` (Hone test files)
+- Run all tests with `cargo test`
 
-```typescript
-import { describe, test, expect, mock } from "bun:test";
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-describe("FeatureName", () => {
-  test("should do something", () => {
-    expect(result).toBe(expected);
-  });
-});
+    #[test]
+    fn test_something() {
+        assert_eq!(result, expected);
+    }
+}
 ```
 
 ## CI/CD
 
-- **CI runs on all PRs**: Type check, tests, and build verification
-- **Releases trigger on tags**: Version tags like `v1.0.0` create releases
-- **PR builds**: Each PR gets preview builds with download links posted as comments
+- **CI runs on all PRs**: Type check (`cargo check`), tests (`cargo test`), and build verification (`cargo build --release`)
+- **Releases trigger on tags**: Version tags like `v1.0.0` create releases with cross-compiled binaries
+- **PR builds**: Each PR gets preview builds for Linux (x64, arm64) and macOS (x64, arm64) with download links posted as comments
 
 ## Platform Support
 

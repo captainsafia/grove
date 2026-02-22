@@ -15,12 +15,24 @@ Grove is a CLI tool that encapsulates the patterns that I use for working with G
 - Shell integration for seamless directory navigation
 - Self-update to the latest version or PR build
 
+## Platform Support
+
+- Linux (x64, arm64)
+- macOS (x64, arm64)
+- Windows (x64)
+
 ## Installation
 
 ### Quick Install (Linux/macOS)
 
 ```bash
 curl https://i.safia.sh/captainsafia/grove | sh
+```
+
+### Quick Install (Windows PowerShell)
+
+```powershell
+irm https://i.safia.sh/captainsafia/grove.ps1 | iex
 ```
 
 This will download the appropriate binary for your system and install it to `~/.grove/bin`.
@@ -31,18 +43,10 @@ To install a specific version:
 curl https://i.safia.sh/captainsafia/grove/v1.0.0 | sh
 ```
 
-### Quick Install (Windows)
+For Windows PowerShell:
 
 ```powershell
-irm https://i.safia.sh/captainsafia/grove | iex
-```
-
-This will download the appropriate binary for your system and install it to `%LOCALAPPDATA%\grove\bin`.
-
-To install a specific version:
-
-```powershell
-irm https://i.safia.sh/captainsafia/grove/v1.0.0 | iex
+irm https://i.safia.sh/captainsafia/grove/v1.0.0.ps1 | iex
 ```
 
 ## Usage
@@ -144,16 +148,6 @@ source ~/.zshrc
 echo 'eval "$(grove shell-init fish)"' >> ~/.config/fish/config.fish
 source ~/.config/fish/config.fish
 ```
-
-**PowerShell:**
-
-Add this line to your PowerShell profile (`$PROFILE`):
-
-```powershell
-Invoke-Expression (grove shell-init pwsh)
-```
-
-To edit your profile, run `notepad $PROFILE`, then restart PowerShell.
 
 With shell integration enabled, `grove go feature-branch` will directly change your working directory.
 
@@ -302,8 +296,7 @@ grove self-update --pr 42
 
 ### Prerequisites
 
-- Node.js 20.0 or later
-- Bun (https://bun.sh)
+- [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
 - Git
 
 ### Setup
@@ -313,35 +306,31 @@ grove self-update --pr 42
 git clone https://github.com/captainsafia/grove.git
 cd grove
 
-# Install dependencies
-bun install
-
 # Build the project
-bun run build
+cargo build
 
-# Build single-file executable
-bun run build:compile
+# Build optimized release binary
+cargo build --release
 ```
 
 ### Development Commands
 
 ```bash
-# Build the project
-bun run build
+# Build debug binary
+cargo build
 
-# Build single-file executable for current platform
-bun run build:compile
+# Build optimized release binary
+cargo build --release
 
-# Cross-compile for specific platforms
-bun run build:linux-x64
-bun run build:darwin-arm64
+# Run directly in development
+cargo run -- <command>
 
-# Type check the code
-bun run typecheck
+# Type check without building
+cargo check
 
-# Run tests
-bun test
+# Run all tests
+cargo test
 
 # Clean build artifacts
-bun run clean
+cargo clean
 ```

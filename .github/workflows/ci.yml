@@ -5,8 +5,6 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  schedule:
-    - cron: '0 0 * * 1' # Run weekly on Mondays for security checks
 
 permissions:
   security-events: write
@@ -14,57 +12,82 @@ permissions:
 
 jobs:
   quality:
-    name: Type Check & Build
+    name: Check, Test & Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bun-version: latest
+          components: rustfmt
 
-      - name: Install dependencies
-        run: bun install
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Type check
-        run: bun run typecheck
+      - name: Check
+        run: cargo check
+
+      - name: Format check
+        run: cargo fmt --all -- --check
 
       - name: Run unit tests
-        run: bun test test/unit
+        run: cargo test
 
-      - name: Build
-        run: bun run build
-
-      - name: Build single-file executable
-        run: bun run build:compile
+      - name: Build release binary
+        run: cargo build --release
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
             name: grove-build
-            path: |
-              dist/
-              grove
+            path: target/release/grove
 
-  security:
-    name: Security Audit
-    runs-on: ubuntu-latest
+  quality-windows:
+    name: Check, Test & Build (Windows)
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bun-version: latest
+          components: rustfmt
 
-      - name: Install dependencies
-        run: bun install
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Check for outdated dependencies
-        run: bun outdated || true
+      - name: Check
+        run: cargo check
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Run unit tests
+        run: cargo test
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: grove-build-windows
+          path: target/release/grove.exe
 
   integration:
     name: Integration Tests
@@ -73,19 +96,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
         with:
-          bun-version: latest
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build single-file executable
-        run: bun run build:compile
+      - name: Build release binary
+        run: cargo build --release
 
       - name: Add grove to PATH
-        run: echo "${{ github.workspace }}" >> $GITHUB_PATH
+        run: cp target/release/grove grove && echo "${{ github.workspace }}" >> $GITHUB_PATH
 
       - name: Run integration tests
         uses: captainsafia/hone/hone-github-action@main

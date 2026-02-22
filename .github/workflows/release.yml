@@ -24,35 +24,46 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bun-version: latest
+          components: rustfmt
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
 
-      - name: Install dependencies
-        run: bun install
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Set version in package.json
+      - name: Set version
         id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # For tagged releases, use the tag version
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
-            # For main branch, generate prerelease version
-            CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
+            CURRENT_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
             COMMIT_SHA=${GITHUB_SHA::7}
             VERSION="${CURRENT_VERSION}-preview.${COMMIT_SHA}"
           fi
           echo "Setting version to: ${VERSION}"
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-          npm version "${VERSION}" --no-git-tag-version --allow-same-version
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+
+      - name: Format check
+        run: cargo fmt --all -- --check
 
       - name: Build for Linux x64
-        run: bun run build:linux-x64
+        run: cargo build --release --target x86_64-unknown-linux-gnu
 
       - name: Build for Linux ARM64
-        run: bun run build:linux-arm64
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --target aarch64-unknown-linux-gnu
+
+      - name: Prepare artifacts
+        run: |
+          cp target/x86_64-unknown-linux-gnu/release/grove grove-linux-x64
+          cp target/aarch64-unknown-linux-gnu/release/grove grove-linux-arm64
 
       - name: Upload Linux executables
         uses: actions/upload-artifact@v4
@@ -61,37 +72,6 @@ jobs:
           path: |
             grove-linux-x64
             grove-linux-arm64
-
-  build-windows:
-    name: Build Windows Executables
-    runs-on: ubuntu-latest
-    needs: build-linux
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Set version in package.json
-        run: npm version "${{ needs.build-linux.outputs.version }}" --no-git-tag-version --allow-same-version
-
-      - name: Build for Windows x64
-        run: bun run build:windows-x64
-
-      - name: Upload Windows executables
-        uses: actions/upload-artifact@v4
-        with:
-          name: grove-windows-executables
-          path: |
-            grove-windows-x64.exe
 
   build-macos:
     name: Build and Sign macOS Executables
@@ -103,22 +83,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bun-version: latest
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
 
-      - name: Install dependencies
-        run: bun install
-
-      - name: Set version in package.json
-        run: npm version "${{ needs.build-linux.outputs.version }}" --no-git-tag-version --allow-same-version
+      - name: Set version
+        run: sed -i '' "s/^version = \".*\"/version = \"${{ needs.build-linux.outputs.version }}\"/" Cargo.toml
 
       - name: Build for macOS x64
-        run: bun run build:darwin-x64
+        run: cargo build --release --target x86_64-apple-darwin
 
       - name: Build for macOS ARM64
-        run: bun run build:darwin-arm64
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Prepare artifacts
+        run: |
+          cp target/x86_64-apple-darwin/release/grove grove-darwin-x64
+          cp target/aarch64-apple-darwin/release/grove grove-darwin-arm64
 
       - name: Import Code Signing Certificate
         env:
@@ -196,10 +178,45 @@ jobs:
             grove-darwin-x64
             grove-darwin-arm64
 
+  build-windows:
+    name: Build Windows Executables
+    runs-on: windows-latest
+    needs: build-linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set version
+        shell: pwsh
+        run: |
+          $version = '${{ needs.build-linux.outputs.version }}'
+          (Get-Content Cargo.toml -Raw) `
+            -replace '^(version = ").*(")$', "`$1$version`$2" |
+            Set-Content Cargo.toml
+
+      - name: Build for Windows x64
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Prepare artifacts
+        run: |
+          copy target\x86_64-pc-windows-msvc\release\grove.exe grove-windows-x64.exe
+
+      - name: Upload Windows executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: grove-windows-executables
+          path: |
+            grove-windows-x64.exe
+
   prerelease:
     name: Prerelease
     runs-on: ubuntu-latest
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     if: github.ref == 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
@@ -254,6 +271,7 @@ jobs:
             | macOS | x64 | `grove-darwin-x64` (signed & notarized) |
             | macOS | ARM64 | `grove-darwin-arm64` (signed & notarized) |
             | Windows | x64 | `grove-windows-x64.exe` |
+            | Windows | x64 | `grove-windows-x64.exe` |
           draft: false
           prerelease: true
           files: |
@@ -262,11 +280,12 @@ jobs:
             ./executables/grove-darwin-x64
             ./executables/grove-darwin-arm64
             ./executables/grove-windows-x64.exe
+            ./executables/grove-windows-x64.exe
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout
