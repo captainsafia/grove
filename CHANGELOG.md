@@ -1,5 +1,46 @@
 # Changelog
 
+<a name="v2.0.0"></a>
+## [v2.0.0] - 2026-02-22
+
+### Features
+- Add bootstrapping support to the add command (#58)
+- Migrate grove from TypeScript to Rust (#56)
+- Add platform helpers for shell and self-update (#56)
+- Move CLI validation into clap parsers (#56)
+- Add agent skill for grove development (#51)
+- Use worktree picker for remove and improve handling of existing default branch worktree in `sync` (#47)
+
+### Bug Fixes
+- Align add command path output (#58)
+- Return exit code 1 for invalid commands (#56)
+- Harden Windows version update step (#56)
+- Avoid non-TTY `go` recursion (#56)
+- Harden handling for `shell-init` methods (#56)
+- Update Hone URL to official site (#51)
+
+### Documentation
+- Document bootstrap config in README and site (#58)
+- Update agents platform support for Windows (#58)
+
+### Tests
+- Share temp dir helper and add bootstrap Hone tests (#58)
+- Fix invalid URL exit code assertion (#58)
+- Add Hone integration tests (#48)
+
+### Chores
+- Remove duplicate executable entry in release workflow (#61)
+- Refactor git worktree API and add fmt checks (#56)
+- Switch PR build to `pull_request` (#56)
+- Restore Windows builds and docs (#56)
+- Switch back to `pull_request_target` (#56)
+- Fix up changelog generation (#57)
+- Move skill to `.agents` directory and clarify Hone usage (#51)
+- Add changelog generation to workflow (#46)
+
+### Other
+- Windows platform fixes for self-update and go (#54)
+
 <a name="v1.4.0"></a>
 ## [v1.4.0] - 2026-01-26
 
