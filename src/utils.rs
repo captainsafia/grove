@@ -6,6 +6,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+#[cfg(test)]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ============================================================================
 // Error Handling
@@ -43,6 +45,25 @@ pub struct GroveConfig {
     pub shell_tip_shown: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BootstrapCommand {
+    pub program: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RepoBootstrapConfig {
+    #[serde(default)]
+    pub commands: Vec<BootstrapCommand>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RepoConfig {
+    #[serde(default)]
+    pub bootstrap: Option<RepoBootstrapConfig>,
+}
+
 /// Read the grove config file.
 pub fn read_config() -> GroveConfig {
     let path = get_config_path();
@@ -59,6 +80,36 @@ pub fn write_config(config: &GroveConfig) {
     if let Ok(content) = serde_json::to_string_pretty(config) {
         let _ = fs::write(get_config_path(), content);
     }
+}
+
+#[cfg(test)]
+pub fn make_temp_dir(test_name: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("grove-{}-{}", test_name, nonce));
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// Read project-level repo config from <project-root>/.groverc.
+pub fn read_repo_config(project_root: &Path) -> Result<RepoConfig, String> {
+    let path = project_root.join(".groverc");
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(RepoConfig::default()),
+        Err(e) => {
+            return Err(format!(
+                "Failed to read repo config at {}: {}",
+                path.display(),
+                e
+            ));
+        }
+    };
+
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Invalid repo config at {}: {}", path.display(), e))
 }
 
 // ============================================================================
@@ -550,11 +601,66 @@ pub fn get_self_update_command(install_url: &str) -> (String, Vec<String>) {
 mod tests {
     use super::*;
     use chrono::Duration;
+    use std::fs;
     use std::sync::{Mutex, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
         static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         ENV_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    // --- readRepoConfig tests ---
+
+    #[test]
+    fn read_repo_config_missing_file_returns_default() {
+        let dir = make_temp_dir("repo-config-missing");
+        let config = read_repo_config(&dir).unwrap();
+        assert!(config.bootstrap.is_none());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn read_repo_config_parses_bootstrap_commands() {
+        let dir = make_temp_dir("repo-config-valid");
+        fs::write(
+            dir.join(".groverc"),
+            r#"{
+  "bootstrap": {
+    "commands": [
+      { "program": "npm", "args": ["install"] },
+      { "program": "cargo", "args": ["check"] }
+    ]
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = read_repo_config(&dir).unwrap();
+        let bootstrap = config.bootstrap.unwrap();
+        assert_eq!(bootstrap.commands.len(), 2);
+        assert_eq!(bootstrap.commands[0].program, "npm");
+        assert_eq!(bootstrap.commands[0].args, vec!["install"]);
+        assert_eq!(bootstrap.commands[1].program, "cargo");
+        assert_eq!(bootstrap.commands[1].args, vec!["check"]);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn read_repo_config_rejects_string_commands_schema() {
+        let dir = make_temp_dir("repo-config-string-schema");
+        fs::write(
+            dir.join(".groverc"),
+            r#"{
+  "bootstrap": {
+    "commands": ["npm install"]
+  }
+}"#,
+        )
+        .unwrap();
+
+        let err = read_repo_config(&dir).unwrap_err();
+        assert!(err.contains("Invalid repo config"));
+        let _ = fs::remove_dir_all(dir);
     }
 
     // --- extractRepoName tests ---

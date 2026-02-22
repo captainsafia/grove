@@ -88,6 +88,27 @@ Track a remote branch:
 grove add feature/new-feature --track origin/feature/new-feature
 ```
 
+Bootstrap a newly created worktree with project-scoped commands:
+
+```json
+{
+  "bootstrap": {
+    "commands": [
+      { "program": "npm", "args": ["install"] },
+      { "program": "cargo", "args": ["check"] }
+    ]
+  }
+}
+```
+
+Save this as `.groverc` in your Grove project root (the directory that contains your bare clone, for example `repo/.groverc` next to `repo/repo.git`).
+
+When `grove add` creates a worktree, it runs each bootstrap command in order inside that new worktree directory.
+
+- Commands must be portable across Linux/macOS/Windows.
+- Use executable + args only (no shell syntax like pipes, `&&`, or redirects).
+- If one command fails, Grove continues running the remaining commands and reports a partial bootstrap state.
+
 ### Remove a worktree
 
 Remove a worktree:

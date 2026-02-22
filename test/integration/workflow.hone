@@ -190,3 +190,53 @@ ASSERT list-alias.stdout contains "Legend:"
 
 # Cleanup
 RUN cleanup: rm -rf /tmp/grove-alias-test
+
+TEST "grove add runs bootstrap commands from .groverc"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-bootstrap-success
+RUN init: cd /tmp && mkdir -p grove-bootstrap-success && cd grove-bootstrap-success && grove init https://github.com/captainsafia/grove.git
+ASSERT init.exit_code == 0
+
+# Configure portable bootstrap commands at project root
+RUN write-config: cd /tmp/grove-bootstrap-success/grove && printf '%s\n' '{"bootstrap":{"commands":[{"program":"git","args":["--version"]},{"program":"git","args":["status","--short"]}]}}' > .groverc
+ASSERT write-config.exit_code == 0
+
+# Add worktree and verify bootstrap ran
+RUN add-bootstrap: cd /tmp/grove-bootstrap-success/grove/grove.git && grove add bootstrap-success
+ASSERT add-bootstrap.exit_code == 0
+ASSERT add-bootstrap.stdout contains "Running bootstrap commands"
+ASSERT add-bootstrap.stdout contains "Bootstrap completed"
+ASSERT add-bootstrap.stdout contains "[bootstrap 2/2]"
+
+# Verify worktree was still created
+RUN verify-worktree: test -d /tmp/grove-bootstrap-success/grove/bootstrap-success
+ASSERT verify-worktree.exit_code == 0
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-bootstrap-success
+
+TEST "grove add reports partial bootstrap state and continues"
+
+# Initialize grove with real repo
+RUN cleanup-pre: rm -rf /tmp/grove-bootstrap-partial
+RUN init: cd /tmp && mkdir -p grove-bootstrap-partial && cd grove-bootstrap-partial && grove init https://github.com/captainsafia/grove.git
+ASSERT init.exit_code == 0
+
+# Configure bootstrap with a failing middle command
+RUN write-config: cd /tmp/grove-bootstrap-partial/grove && printf '%s\n' '{"bootstrap":{"commands":[{"program":"git","args":["--version"]},{"program":"git","args":["--definitely-invalid-flag"]},{"program":"git","args":["--version"]}]}}' > .groverc
+ASSERT write-config.exit_code == 0
+
+# Add worktree should succeed but report partial bootstrap
+RUN add-bootstrap: cd /tmp/grove-bootstrap-partial/grove/grove.git && grove add bootstrap-partial
+ASSERT add-bootstrap.exit_code == 0
+ASSERT add-bootstrap.stdout contains "Running bootstrap commands"
+ASSERT add-bootstrap.stdout contains "[bootstrap 3/3]"
+ASSERT add-bootstrap.stderr contains "partial state"
+
+# Verify worktree was created despite bootstrap failure
+RUN verify-worktree: test -d /tmp/grove-bootstrap-partial/grove/bootstrap-partial
+ASSERT verify-worktree.exit_code == 0
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-bootstrap-partial

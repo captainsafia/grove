@@ -799,6 +799,17 @@ $ grove go main`;
                     <pre><code>grove add feature-branch</code></pre>
                     <p>With tracking for a remote branch:</p>
                     <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
+                    <p>Optional bootstrap commands from <code>.groverc</code> run in the new worktree:</p>
+                    <pre><code>{
+  "bootstrap": {
+    "commands": [
+      { "program": "npm", "args": ["install"] },
+      { "program": "cargo", "args": ["check"] }
+    ]
+  }
+}</code></pre>
+                    <p>Place <code>.groverc</code> in the Grove project root (next to the bare clone directory).</p>
+                    <p>Commands must be portable across Linux/macOS/Windows and use executable + args only (no shell operators like <code>&amp;&amp;</code> or pipes). If one command fails, Grove continues and reports a partial bootstrap state.</p>
                 </div>
 
                 <div class="command-group">
