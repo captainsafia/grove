@@ -1,7 +1,16 @@
 use colored::Colorize;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use crate::git::{add_worktree, discover_repo, project_root};
+use crate::utils::{read_repo_config, BootstrapCommand};
+
+#[derive(Debug)]
+struct BootstrapSummary {
+    total: usize,
+    succeeded: usize,
+    failed: Vec<(String, String)>,
+}
 
 pub fn run(name: &str, track: Option<&str>) {
     let repo = match discover_repo() {
@@ -51,6 +60,50 @@ pub fn run(name: &str, track: Option<&str>) {
         println!("{} {}", "✓ Created worktree:".green(), name.bold());
     }
     println!("  {}", format!("Path: {}", worktree_path_str).dimmed());
+
+    let repo_config = match read_repo_config(project_root) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("{} {}", "Warning:".yellow(), e);
+            return;
+        }
+    };
+
+    let commands = match repo_config.bootstrap {
+        Some(bootstrap) if !bootstrap.commands.is_empty() => bootstrap.commands,
+        _ => return,
+    };
+
+    println!("{}", "Running bootstrap commands...".blue());
+    let summary = run_bootstrap_commands(&worktree_path, &commands);
+    if summary.failed.is_empty() {
+        println!(
+            "{} {}",
+            "✓ Bootstrap completed:".green(),
+            format!("{}/{} succeeded", summary.succeeded, summary.total).bold()
+        );
+    } else {
+        eprintln!(
+            "{} {}",
+            "Warning:".yellow(),
+            format!(
+                "Bootstrap completed in partial state: {}/{} succeeded.",
+                summary.succeeded, summary.total
+            )
+            .yellow()
+        );
+        for (command, reason) in &summary.failed {
+            eprintln!("  - {} ({})", command.bold(), reason);
+        }
+        eprintln!(
+            "  {}",
+            format!(
+                "Review and rerun failed commands in {}",
+                worktree_path.to_string_lossy()
+            )
+            .dimmed()
+        );
+    }
 }
 
 pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathBuf, String> {
@@ -88,11 +141,77 @@ pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathB
     Ok(resolved_path)
 }
 
+fn run_bootstrap_commands(worktree_path: &Path, commands: &[BootstrapCommand]) -> BootstrapSummary {
+    let mut succeeded = 0;
+    let mut failed = Vec::new();
+
+    for (idx, command) in commands.iter().enumerate() {
+        let command_display = format_bootstrap_command(command);
+        println!(
+            "{}",
+            format!(
+                "[bootstrap {}/{}] {}",
+                idx + 1,
+                commands.len(),
+                command_display
+            )
+            .dimmed()
+        );
+
+        if command.program.trim().is_empty() {
+            failed.push((
+                command_display,
+                "invalid command (empty program)".to_string(),
+            ));
+            continue;
+        }
+
+        let result = Command::new(&command.program)
+            .args(&command.args)
+            .current_dir(worktree_path)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status();
+
+        match result {
+            Ok(status) if status.success() => {
+                succeeded += 1;
+            }
+            Ok(status) => {
+                let reason = match status.code() {
+                    Some(code) => format!("exit code {}", code),
+                    None => "terminated by signal".to_string(),
+                };
+                failed.push((command_display, reason));
+            }
+            Err(e) => {
+                failed.push((command_display, format!("failed to execute: {}", e)));
+            }
+        }
+    }
+
+    BootstrapSummary {
+        total: commands.len(),
+        succeeded,
+        failed,
+    }
+}
+
+fn format_bootstrap_command(command: &BootstrapCommand) -> String {
+    if command.args.is_empty() {
+        command.program.clone()
+    } else {
+        format!("{} {}", command.program, command.args.join(" "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use regex::Regex;
     use std::env;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     // --- getWorktreePath security tests ---
 
@@ -170,6 +289,70 @@ mod tests {
         let project_root = env::current_dir().unwrap();
         let result = get_worktree_path("feature-123", &project_root);
         assert!(result.is_ok());
+    }
+
+    fn make_temp_dir(test_name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = env::temp_dir().join(format!("grove-{}-{}", test_name, nonce));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn bootstrap_no_commands_is_noop() {
+        let worktree_dir = make_temp_dir("bootstrap-empty");
+        let summary = run_bootstrap_commands(&worktree_dir, &[]);
+        assert_eq!(summary.total, 0);
+        assert_eq!(summary.succeeded, 0);
+        assert_eq!(summary.failed.len(), 0);
+        let _ = fs::remove_dir_all(worktree_dir);
+    }
+
+    #[test]
+    fn bootstrap_continues_after_failure() {
+        let worktree_dir = make_temp_dir("bootstrap-continue");
+        let commands = vec![
+            BootstrapCommand {
+                program: "git".to_string(),
+                args: vec!["--version".to_string()],
+            },
+            BootstrapCommand {
+                program: "git".to_string(),
+                args: vec!["--definitely-invalid-flag".to_string()],
+            },
+            BootstrapCommand {
+                program: "git".to_string(),
+                args: vec!["--version".to_string()],
+            },
+        ];
+
+        let summary = run_bootstrap_commands(&worktree_dir, &commands);
+        assert_eq!(summary.total, 3);
+        assert_eq!(summary.succeeded, 2);
+        assert_eq!(summary.failed.len(), 1);
+        assert!(summary.failed[0]
+            .0
+            .contains("git --definitely-invalid-flag"));
+        let _ = fs::remove_dir_all(worktree_dir);
+    }
+
+    #[test]
+    fn bootstrap_marks_empty_program_as_failed() {
+        let worktree_dir = make_temp_dir("bootstrap-empty-program");
+        let commands = vec![BootstrapCommand {
+            program: "".to_string(),
+            args: vec!["--version".to_string()],
+        }];
+
+        let summary = run_bootstrap_commands(&worktree_dir, &commands);
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.succeeded, 0);
+        assert_eq!(summary.failed.len(), 1);
+        assert!(summary.failed[0].1.contains("invalid command"));
+        let _ = fs::remove_dir_all(worktree_dir);
     }
 
     // --- self-update validation tests (ported from cli.test.ts) ---
