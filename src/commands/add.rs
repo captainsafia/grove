@@ -208,10 +208,10 @@ fn format_bootstrap_command(command: &BootstrapCommand) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::make_temp_dir;
     use regex::Regex;
     use std::env;
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     // --- getWorktreePath security tests ---
 
@@ -289,16 +289,6 @@ mod tests {
         let project_root = env::current_dir().unwrap();
         let result = get_worktree_path("feature-123", &project_root);
         assert!(result.is_ok());
-    }
-
-    fn make_temp_dir(test_name: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let dir = env::temp_dir().join(format!("grove-{}-{}", test_name, nonce));
-        fs::create_dir_all(&dir).unwrap();
-        dir
     }
 
     #[test]

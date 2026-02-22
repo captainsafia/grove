@@ -6,6 +6,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+#[cfg(test)]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ============================================================================
 // Error Handling
@@ -78,6 +80,17 @@ pub fn write_config(config: &GroveConfig) {
     if let Ok(content) = serde_json::to_string_pretty(config) {
         let _ = fs::write(get_config_path(), content);
     }
+}
+
+#[cfg(test)]
+pub fn make_temp_dir(test_name: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("grove-{}-{}", test_name, nonce));
+    fs::create_dir_all(&dir).unwrap();
+    dir
 }
 
 /// Read project-level repo config from <project-root>/.groverc.
@@ -589,23 +602,11 @@ mod tests {
     use super::*;
     use chrono::Duration;
     use std::fs;
-    use std::path::PathBuf;
     use std::sync::{Mutex, OnceLock};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn env_lock() -> &'static Mutex<()> {
         static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         ENV_LOCK.get_or_init(|| Mutex::new(()))
-    }
-
-    fn make_temp_dir(test_name: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let dir = std::env::temp_dir().join(format!("grove-{}-{}", test_name, nonce));
-        fs::create_dir_all(&dir).unwrap();
-        dir
     }
 
     // --- readRepoConfig tests ---
