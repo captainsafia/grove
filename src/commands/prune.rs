@@ -6,7 +6,7 @@ use crate::git::{
     DETACHED_HEAD,
 };
 use crate::models::Worktree;
-use crate::utils::parse_duration;
+use crate::utils::{parse_duration, trim_trailing_branch_slashes};
 
 pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&str>) {
     if older_than.is_some() && base.is_some() {
@@ -32,7 +32,12 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
     // Get the base branch
     let base_branch = if older_than.is_none() {
         if let Some(b) = base {
-            b.to_string()
+            let normalized = trim_trailing_branch_slashes(b);
+            if normalized.is_empty() {
+                eprintln!("{} Branch name is required", "Error:".red());
+                std::process::exit(1);
+            }
+            normalized.to_string()
         } else {
             match get_default_branch(&repo) {
                 Ok(b) => b,

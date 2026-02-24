@@ -8,12 +8,12 @@ mod git;
 mod models;
 mod utils;
 
-use crate::utils::{is_valid_git_url, parse_duration};
+use crate::utils::{is_valid_git_url, parse_duration, trim_trailing_branch_slashes};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn validate_branch_name(value: &str) -> Result<String, String> {
-    let trimmed = value.trim();
+    let trimmed = trim_trailing_branch_slashes(value);
     if trimmed.is_empty() {
         return Err("Branch name is required".to_string());
     }
@@ -238,5 +238,23 @@ fn main() {
             );
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_branch_name;
+
+    #[test]
+    fn validate_branch_name_trims_trailing_slashes() {
+        assert_eq!(
+            validate_branch_name("feature/my-branch///").unwrap(),
+            "feature/my-branch"
+        );
+    }
+
+    #[test]
+    fn validate_branch_name_rejects_empty_after_trimming() {
+        assert!(validate_branch_name("///").is_err());
     }
 }

@@ -1,6 +1,7 @@
 use colored::Colorize;
 
 use crate::git::{discover_repo, get_default_branch, list_worktrees, sync_branch};
+use crate::utils::trim_trailing_branch_slashes;
 
 pub fn run(branch: Option<&str>) {
     let repo = match discover_repo() {
@@ -12,7 +13,12 @@ pub fn run(branch: Option<&str>) {
     };
 
     let target_branch = if let Some(b) = branch {
-        b.to_string()
+        let normalized = trim_trailing_branch_slashes(b);
+        if normalized.is_empty() {
+            eprintln!("{} Branch name is required", "Error:".red());
+            std::process::exit(1);
+        }
+        normalized.to_string()
     } else {
         match get_default_branch(&repo) {
             Ok(b) => b,
