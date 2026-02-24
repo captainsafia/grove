@@ -249,3 +249,10 @@ Grove supports:
 - Windows (x64)
 
 Prefer cross-platform implementations when adding features, and avoid Unix-only command assumptions in user-facing workflows.
+
+## Cursor Cloud specific instructions
+
+- The default Rust toolchain on the VM (1.83.0) is too old for this project's transitive dependencies. The update script runs `rustup default stable` to ensure the latest stable toolchain is active. If you see `edition2024` errors, this is the cause.
+- This is a zero-service project: no databases, web servers, or containers. Only `rustc`, `cargo`, and `git` are needed.
+- Development commands are documented in the "Development Commands" section above. Always run `cargo check` and `cargo test` before committing.
+- To demo the CLI: `cargo run -- init <git-url>` clones a repo as a bare repo, then `cargo run -- add <branch>` creates worktrees, and `cargo run -- list` shows them. Run these from a temp directory, not the workspace root.
