@@ -508,14 +508,11 @@ fn metadata_created_at(meta: &fs::Metadata) -> Option<DateTime<Utc>> {
 }
 
 fn normalize_path_for_git(path: &str) -> String {
-    #[cfg(windows)]
-    {
-        if let Some(stripped) = path.strip_prefix(r"\\?\UNC\") {
-            return format!(r"\\{}", stripped);
-        }
-        if let Some(stripped) = path.strip_prefix(r"\\?\") {
-            return stripped.to_string();
-        }
+    if let Some(stripped) = path.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{}", stripped);
+    }
+    if let Some(stripped) = path.strip_prefix(r"\\?\") {
+        return stripped.to_string();
     }
 
     path.to_string()
@@ -601,7 +598,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(windows)]
     fn normalize_path_for_git_strips_windows_extended_prefix() {
         assert_eq!(
             normalize_path_for_git(r"\\?\C:\Users\dev\repo\feature-worktree"),
@@ -610,7 +606,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(windows)]
     fn normalize_path_for_git_converts_unc_extended_prefix() {
         assert_eq!(
             normalize_path_for_git(r"\\?\UNC\server\share\repo\feature-worktree"),
@@ -619,9 +614,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(windows))]
-    fn normalize_path_for_git_is_noop_on_non_windows() {
-        let path = r"\\?\C:\Users\dev\repo\feature-worktree";
+    fn normalize_path_for_git_preserves_normal_paths() {
+        let path = "/home/dev/repo/feature-worktree";
         assert_eq!(normalize_path_for_git(path), path);
     }
 
