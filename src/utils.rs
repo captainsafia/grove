@@ -191,6 +191,12 @@ pub fn extract_repo_name(git_url: &str) -> Result<String, String> {
     Ok(repo_name.to_string())
 }
 
+/// Normalize branch-like user input by trimming whitespace and trailing slashes.
+/// Preserves internal slashes (e.g. "feature/my-branch") for nested branch names.
+pub fn trim_trailing_branch_slashes(value: &str) -> &str {
+    value.trim().trim_end_matches('/')
+}
+
 /// Normalize human-friendly duration strings to ISO 8601 format.
 /// Accepts formats like: 30d, 2w, 6M, 1y, 12h, 30m
 /// Returns ISO 8601 format: P30D, P2W, P6M, P1Y, PT12H, PT30M

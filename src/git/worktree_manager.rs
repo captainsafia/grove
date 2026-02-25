@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::models::Worktree;
-use crate::utils::{discover_bare_clone, get_project_root};
+use crate::utils::{discover_bare_clone, get_project_root, trim_trailing_branch_slashes};
 
 pub const MAIN_BRANCHES: &[&str] = &["main", "master"];
 pub const DETACHED_HEAD: &str = "detached HEAD";
@@ -247,32 +247,36 @@ pub fn find_worktree_by_name(
     name: &str,
 ) -> Result<Option<Worktree>, String> {
     let worktrees = list_worktrees(context)?;
+    Ok(match_worktree_by_name(&worktrees, name).cloned())
+}
 
-    // First, try exact branch name match
-    if let Some(wt) = worktrees.iter().find(|wt| wt.branch == name) {
-        return Ok(Some(wt.clone()));
+fn match_worktree_by_name<'a>(worktrees: &'a [Worktree], name: &str) -> Option<&'a Worktree> {
+    let normalized_name = trim_trailing_branch_slashes(name);
+
+    if normalized_name.is_empty() {
+        return None;
     }
 
-    // Try matching by directory name
+    // First, try exact branch name match.
+    if let Some(wt) = worktrees.iter().find(|wt| wt.branch == normalized_name) {
+        return Some(wt);
+    }
+
+    // Try matching by directory name.
     if let Some(wt) = worktrees.iter().find(|wt| {
         Path::new(&wt.path)
             .file_name()
             .and_then(|n| n.to_str())
-            .map(|n| n == name)
+            .map(|n| n == normalized_name)
             .unwrap_or(false)
     }) {
-        return Ok(Some(wt.clone()));
+        return Some(wt);
     }
 
-    // Try partial branch name match (suffix matching)
-    if let Some(wt) = worktrees
+    // Try partial branch name match (suffix matching).
+    worktrees
         .iter()
-        .find(|wt| wt.branch.ends_with(&format!("/{}", name)))
-    {
-        return Ok(Some(wt.clone()));
-    }
-
-    Ok(None)
+        .find(|wt| wt.branch.ends_with(&format!("/{}", normalized_name)))
 }
 
 struct PartialWorktree {
@@ -399,6 +403,20 @@ fn metadata_created_at(meta: &fs::Metadata) -> Option<DateTime<Utc>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::DateTime;
+
+    fn make_worktree(path: &str, branch: &str) -> Worktree {
+        Worktree {
+            path: path.to_string(),
+            branch: branch.to_string(),
+            head: "abc123".to_string(),
+            created_at: DateTime::from_timestamp(0, 0).unwrap(),
+            is_dirty: false,
+            is_locked: false,
+            is_prunable: false,
+            is_main: false,
+        }
+    }
 
     // --- parseWorktreeLines tests ---
 
@@ -459,5 +477,33 @@ mod tests {
         assert_eq!(worktrees[0].branch.as_deref(), Some("main"));
         assert!(worktrees[1].is_locked);
         assert!(worktrees[2].is_prunable);
+    }
+
+    #[test]
+    fn match_worktree_by_name_trims_trailing_slashes() {
+        let worktrees = vec![
+            make_worktree("/repo/main", "main"),
+            make_worktree("/repo/feature/my-branch", "feature/my-branch"),
+        ];
+
+        let found = match_worktree_by_name(&worktrees, "feature/my-branch/");
+        assert_eq!(
+            found.map(|wt| wt.branch.as_str()),
+            Some("feature/my-branch")
+        );
+    }
+
+    #[test]
+    fn match_worktree_by_name_suffix_match_with_trailing_slash() {
+        let worktrees = vec![make_worktree(
+            "/repo/feature/my-branch",
+            "feature/my-branch",
+        )];
+
+        let found = match_worktree_by_name(&worktrees, "my-branch/");
+        assert_eq!(
+            found.map(|wt| wt.branch.as_str()),
+            Some("feature/my-branch")
+        );
     }
 }

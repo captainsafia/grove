@@ -6,11 +6,13 @@ use crate::commands::shell_init::{
 };
 use crate::git::{discover_repo, find_worktree_by_name, list_worktrees, RepoContext};
 use crate::models::Worktree;
-use crate::utils::get_shell_for_platform;
+use crate::utils::{get_shell_for_platform, trim_trailing_branch_slashes};
 
 pub fn run(name: Option<&str>, path_only: bool) {
     if path_only
-        && name.map(|n| n.trim().is_empty()).unwrap_or(true)
+        && name
+            .map(|n| trim_trailing_branch_slashes(n).is_empty())
+            .unwrap_or(true)
         && !atty::is(atty::Stream::Stdin)
     {
         eprintln!(
@@ -30,10 +32,11 @@ pub fn run(name: Option<&str>, path_only: bool) {
     };
 
     let worktree = if let Some(name) = name {
-        if name.trim().is_empty() {
+        let normalized_name = trim_trailing_branch_slashes(name);
+        if normalized_name.is_empty() {
             pick_or_error(&repo)
         } else {
-            match find_worktree_by_name(&repo, name) {
+            match find_worktree_by_name(&repo, normalized_name) {
                 Ok(Some(wt)) => wt,
                 Ok(None) => {
                     eprintln!(
