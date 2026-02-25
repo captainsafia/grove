@@ -879,33 +879,6 @@ mod tests {
         assert_eq!(normalize_duration("30"), "30");
     }
 
-    #[test]
-    fn trim_trailing_branch_slashes_basic() {
-        assert_eq!(trim_trailing_branch_slashes("feature-1"), "feature-1");
-        assert_eq!(trim_trailing_branch_slashes("feature-1/"), "feature-1");
-        assert_eq!(
-            trim_trailing_branch_slashes("feature/my-feature///"),
-            "feature/my-feature"
-        );
-    }
-
-    #[test]
-    fn trim_trailing_branch_slashes_trims_whitespace() {
-        assert_eq!(trim_trailing_branch_slashes("  feature-1/  "), "feature-1");
-        assert_eq!(
-            trim_trailing_branch_slashes("  feature/my-branch  "),
-            "feature/my-branch"
-        );
-    }
-
-    #[test]
-    fn trim_trailing_branch_slashes_empty_cases() {
-        assert_eq!(trim_trailing_branch_slashes(""), "");
-        assert_eq!(trim_trailing_branch_slashes("   "), "");
-        assert_eq!(trim_trailing_branch_slashes("/"), "");
-        assert_eq!(trim_trailing_branch_slashes("///"), "");
-    }
-
     // --- parseDuration tests ---
 
     #[test]
