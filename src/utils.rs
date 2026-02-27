@@ -61,6 +61,8 @@ pub struct RepoBootstrapConfig {
 pub struct RepoConfig {
     #[serde(default)]
     pub bootstrap: Option<RepoBootstrapConfig>,
+    #[serde(rename = "branchPrefix", default)]
+    pub branch_prefix: Option<String>,
 }
 
 /// Read the grove config file.
@@ -698,6 +700,7 @@ mod tests {
         let dir = make_temp_dir("repo-config-missing");
         let config = read_repo_config(&dir).unwrap();
         assert!(config.bootstrap.is_none());
+        assert!(config.branch_prefix.is_none());
         let _ = fs::remove_dir_all(dir);
     }
 
@@ -707,6 +710,7 @@ mod tests {
         fs::write(
             dir.join(".groverc"),
             r#"{
+  "branchPrefix": "safia",
   "bootstrap": {
     "commands": [
       { "program": "npm", "args": ["install"] },
@@ -718,12 +722,30 @@ mod tests {
         .unwrap();
 
         let config = read_repo_config(&dir).unwrap();
+        assert_eq!(config.branch_prefix.as_deref(), Some("safia"));
         let bootstrap = config.bootstrap.unwrap();
         assert_eq!(bootstrap.commands.len(), 2);
         assert_eq!(bootstrap.commands[0].program, "npm");
         assert_eq!(bootstrap.commands[0].args, vec!["install"]);
         assert_eq!(bootstrap.commands[1].program, "cargo");
         assert_eq!(bootstrap.commands[1].args, vec!["check"]);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn read_repo_config_parses_branch_prefix_without_bootstrap() {
+        let dir = make_temp_dir("repo-config-prefix-only");
+        fs::write(
+            dir.join(".groverc"),
+            r#"{
+  "branchPrefix": "teams/safia"
+}"#,
+        )
+        .unwrap();
+
+        let config = read_repo_config(&dir).unwrap();
+        assert_eq!(config.branch_prefix.as_deref(), Some("teams/safia"));
+        assert!(config.bootstrap.is_none());
         let _ = fs::remove_dir_all(dir);
     }
 
