@@ -2,8 +2,11 @@ use colored::Colorize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::git::{add_worktree, discover_repo, project_root};
-use crate::utils::{read_repo_config, BootstrapCommand};
+use crate::git::{add_worktree, branch_exists, discover_repo, project_root, RepoContext};
+use crate::utils::{
+    default_worktree_name_seed, generate_default_worktree_name, read_repo_config, BootstrapCommand,
+    DEFAULT_WORKTREE_NAME_ATTEMPTS,
+};
 
 #[derive(Debug)]
 struct BootstrapSummary {
@@ -12,7 +15,7 @@ struct BootstrapSummary {
     failed: Vec<(String, String)>,
 }
 
-pub fn run(name: &str, track: Option<&str>) {
+pub fn run(name: Option<&str>, track: Option<&str>) {
     let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
@@ -22,7 +25,14 @@ pub fn run(name: &str, track: Option<&str>) {
     };
 
     let project_root = project_root(&repo);
-    let worktree_path = match get_worktree_path(name, project_root) {
+    let branch_name = match resolve_worktree_name(name, &repo, project_root) {
+        Ok(name) => name,
+        Err(e) => {
+            eprintln!("{} {}", "Error:".red(), e);
+            std::process::exit(1);
+        }
+    };
+    let worktree_path = match get_worktree_path(&branch_name, project_root) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -34,15 +44,15 @@ pub fn run(name: &str, track: Option<&str>) {
 
     // Try to create worktree for existing branch first, fall back to creating new branch
     let mut is_new_branch = false;
-    if let Err(_existing_err) = add_worktree(&repo, &worktree_path_str, name, false, track) {
-        match add_worktree(&repo, &worktree_path_str, name, true, track) {
+    if let Err(existing_err) = add_worktree(&repo, &worktree_path_str, &branch_name, false, track) {
+        match add_worktree(&repo, &worktree_path_str, &branch_name, true, track) {
             Ok(()) => is_new_branch = true,
             Err(new_err) => {
                 eprintln!(
                     "{} Failed to create worktree for '{}':\n  As existing branch: {}\n  As new branch: {}",
                     "Error:".red(),
-                    name,
-                    _existing_err,
+                    branch_name,
+                    existing_err,
                     new_err
                 );
                 std::process::exit(1);
@@ -54,10 +64,10 @@ pub fn run(name: &str, track: Option<&str>) {
         println!(
             "{} {}",
             "✓ Created new branch and worktree:".green(),
-            name.bold()
+            branch_name.bold()
         );
     } else {
-        println!("{} {}", "✓ Created worktree:".green(), name.bold());
+        println!("{} {}", "✓ Created worktree:".green(), branch_name.bold());
     }
     println!("{}", format!("Path: {}", worktree_path_str).dimmed());
 
@@ -104,6 +114,41 @@ pub fn run(name: &str, track: Option<&str>) {
             .dimmed()
         );
     }
+}
+
+fn resolve_worktree_name(
+    provided_name: Option<&str>,
+    repo: &RepoContext,
+    project_root: &Path,
+) -> Result<String, String> {
+    if let Some(name) = provided_name {
+        return Ok(name.to_string());
+    }
+
+    choose_default_worktree_name(repo, project_root)
+}
+
+fn choose_default_worktree_name(repo: &RepoContext, project_root: &Path) -> Result<String, String> {
+    let seed = default_worktree_name_seed();
+    for attempt in 0..DEFAULT_WORKTREE_NAME_ATTEMPTS {
+        let candidate = generate_default_worktree_name(seed, attempt);
+        if is_name_available(repo, project_root, &candidate) {
+            return Ok(candidate);
+        }
+    }
+
+    Err(
+        "Unable to generate a unique default worktree name; please provide one explicitly."
+            .to_string(),
+    )
+}
+
+fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &str) -> bool {
+    if branch_exists(repo, candidate) {
+        return false;
+    }
+
+    !project_root.join(candidate).exists()
 }
 
 pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathBuf, String> {

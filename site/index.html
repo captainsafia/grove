@@ -797,6 +797,9 @@ $ grove go main`;
                     <h3>Add a new worktree</h3>
                     <p>Create a worktree for a branch (creates branch if it doesn't exist):</p>
                     <pre><code>grove add feature-branch</code></pre>
+                    <p>Or let Grove generate a default adjective-noun name:</p>
+                    <pre><code>grove add
+# Example generated name: quiet-meadow</code></pre>
                     <p>With tracking for a remote branch:</p>
                     <pre><code>grove add feature-branch --track origin/feature-branch</code></pre>
                     <p>Optional bootstrap commands from <code>.groverc</code> run in the new worktree:</p>
@@ -891,8 +894,8 @@ grove prune --older-than P30D</code></pre>
                             <td>Create a new worktree setup</td>
                         </tr>
                         <tr>
-                            <td>grove add &lt;branch&gt;</td>
-                            <td>Create a new worktree for a branch</td>
+                            <td>grove add [name]</td>
+                            <td>Create a new worktree (name optional)</td>
                         </tr>
                         <tr>
                             <td>grove go &lt;name&gt;</td>

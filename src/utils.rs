@@ -6,7 +6,6 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-#[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // ============================================================================
@@ -195,6 +194,83 @@ pub fn extract_repo_name(git_url: &str) -> Result<String, String> {
 /// Preserves internal slashes (e.g. "feature/my-branch") for nested branch names.
 pub fn trim_trailing_branch_slashes(value: &str) -> &str {
     value.trim().trim_end_matches('/')
+}
+
+pub const DEFAULT_WORKTREE_NAME_ATTEMPTS: u64 = 64;
+const DEFAULT_WORKTREE_NAME_ADJECTIVES: &[&str] = &[
+    "amber", "autumn", "brisk", "calm", "cedar", "clear", "cobalt", "cosmic", "dawn", "deep",
+    "eager", "ember", "gentle", "golden", "granite", "green", "hidden", "hollow", "icy", "jolly",
+    "keen", "lively", "lunar", "mellow", "misty", "modern", "morning", "nimble", "noble", "quiet",
+    "rapid", "rustic", "silver", "steady", "swift", "tidy", "urban", "vivid", "warm", "wild",
+];
+const DEFAULT_WORKTREE_NAME_NOUNS: &[&str] = &[
+    "brook",
+    "canopy",
+    "canyon",
+    "cliff",
+    "cloud",
+    "creek",
+    "dawn",
+    "delta",
+    "field",
+    "forest",
+    "garden",
+    "grove",
+    "harbor",
+    "horizon",
+    "island",
+    "lake",
+    "leaf",
+    "meadow",
+    "mesa",
+    "moonlight",
+    "mountain",
+    "orchard",
+    "peak",
+    "pine",
+    "planet",
+    "prairie",
+    "quartz",
+    "rain",
+    "ridge",
+    "river",
+    "shadow",
+    "shore",
+    "sky",
+    "spring",
+    "stone",
+    "summit",
+    "thunder",
+    "trail",
+    "valley",
+    "willow",
+];
+
+pub fn default_worktree_name_seed() -> u64 {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let nanos = duration.as_nanos() as u64;
+    nanos ^ ((std::process::id() as u64) << 32)
+}
+
+pub fn generate_default_worktree_name(seed: u64, attempt: u64) -> String {
+    let adjective_index = (splitmix64(seed.wrapping_add(attempt))
+        % DEFAULT_WORKTREE_NAME_ADJECTIVES.len() as u64) as usize;
+    let noun_seed = seed.wrapping_add(attempt.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    let noun_index = (splitmix64(noun_seed) % DEFAULT_WORKTREE_NAME_NOUNS.len() as u64) as usize;
+
+    format!(
+        "{}-{}",
+        DEFAULT_WORKTREE_NAME_ADJECTIVES[adjective_index], DEFAULT_WORKTREE_NAME_NOUNS[noun_index]
+    )
+}
+
+fn splitmix64(mut value: u64) -> u64 {
+    value = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
 }
 
 /// Normalize human-friendly duration strings to ISO 8601 format.
@@ -846,6 +922,20 @@ mod tests {
         assert!(!is_valid_git_url("file:///path/to/repo"));
         assert!(!is_valid_git_url("my-repo"));
         assert!(!is_valid_git_url("git@github.com"));
+    }
+
+    #[test]
+    fn generate_default_worktree_name_uses_adjective_noun_shape() {
+        let generated = generate_default_worktree_name(42, 0);
+        let re = Regex::new(r"^[a-z]+-[a-z]+$").unwrap();
+        assert!(re.is_match(&generated));
+    }
+
+    #[test]
+    fn generate_default_worktree_name_changes_per_attempt() {
+        let first = generate_default_worktree_name(42, 0);
+        let second = generate_default_worktree_name(42, 1);
+        assert_ne!(first, second);
     }
 
     // --- normalizeDuration tests ---

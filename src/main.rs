@@ -73,9 +73,9 @@ struct Cli {
 enum Commands {
     /// Create a new worktree
     Add {
-        /// Branch name (creates new branch if it doesn't exist)
+        /// Branch name (optional; creates new branch if it doesn't exist)
         #[arg(value_parser = validate_branch_name)]
-        name: String,
+        name: Option<String>,
         /// Set up tracking for the specified remote branch
         #[arg(short = 't', long = "track")]
         track: Option<String>,
@@ -191,7 +191,7 @@ fn main() {
 
     match cli.command {
         Some(Commands::Add { name, track }) => {
-            commands::add::run(&name, track.as_deref());
+            commands::add::run(name.as_deref(), track.as_deref());
         }
         Some(Commands::Go { name, path_only }) => {
             commands::go::run(name.as_deref(), path_only);
@@ -243,7 +243,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_branch_name;
+    use super::{validate_branch_name, Cli, Commands};
+    use clap::Parser;
 
     #[test]
     fn validate_branch_name_trims_trailing_slashes() {
@@ -256,5 +257,36 @@ mod tests {
     #[test]
     fn validate_branch_name_rejects_empty_after_trimming() {
         assert!(validate_branch_name("///").is_err());
+    }
+
+    #[test]
+    fn add_command_allows_omitted_name() {
+        let cli = Cli::try_parse_from(["grove", "add"]).unwrap();
+        match cli.command {
+            Some(Commands::Add { name, track }) => {
+                assert!(name.is_none());
+                assert!(track.is_none());
+            }
+            _ => panic!("expected add command"),
+        }
+    }
+
+    #[test]
+    fn add_command_parses_name_and_track() {
+        let cli = Cli::try_parse_from([
+            "grove",
+            "add",
+            "feature/new-worktree",
+            "--track",
+            "origin/main",
+        ])
+        .unwrap();
+        match cli.command {
+            Some(Commands::Add { name, track }) => {
+                assert_eq!(name.as_deref(), Some("feature/new-worktree"));
+                assert_eq!(track.as_deref(), Some("origin/main"));
+            }
+            _ => panic!("expected add command"),
+        }
     }
 }
