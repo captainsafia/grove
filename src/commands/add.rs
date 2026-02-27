@@ -2,7 +2,9 @@ use colored::Colorize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::git::{add_worktree, branch_exists, discover_repo, project_root, RepoContext};
+use crate::git::{
+    add_worktree, branch_exists, discover_repo, project_root, tracked_branch_name, RepoContext,
+};
 use crate::utils::{
     default_worktree_name_seed, generate_default_worktree_name, read_repo_config, BootstrapCommand,
     DEFAULT_WORKTREE_NAME_ATTEMPTS,
@@ -25,14 +27,14 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     };
 
     let project_root = project_root(&repo);
-    let branch_name = match resolve_worktree_name(name, &repo, project_root) {
+    let worktree_name = match resolve_worktree_name(name, &repo, project_root) {
         Ok(name) => name,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
             std::process::exit(1);
         }
     };
-    let worktree_path = match get_worktree_path(&branch_name, project_root) {
+    let worktree_path = match get_worktree_path(&worktree_name, project_root) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -41,17 +43,30 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     };
 
     let worktree_path_str = worktree_path.to_string_lossy().to_string();
+    let target_branch = match resolve_target_branch(&worktree_name, track) {
+        Ok(branch) => branch,
+        Err(e) => {
+            eprintln!("{} {}", "Error:".red(), e);
+            std::process::exit(1);
+        }
+    };
 
     // Try to create worktree for existing branch first, fall back to creating new branch
     let mut is_new_branch = false;
-    if let Err(existing_err) = add_worktree(&repo, &worktree_path_str, &branch_name, false, track) {
-        match add_worktree(&repo, &worktree_path_str, &branch_name, true, track) {
+    if let Err(existing_err) = add_worktree(&repo, &worktree_path_str, &target_branch, false, track)
+    {
+        match add_worktree(&repo, &worktree_path_str, &target_branch, true, track) {
             Ok(()) => is_new_branch = true,
             Err(new_err) => {
+                let worktree_and_branch = if target_branch == worktree_name {
+                    worktree_name.clone()
+                } else {
+                    format!("{} (branch: {})", worktree_name, target_branch)
+                };
                 eprintln!(
                     "{} Failed to create worktree for '{}':\n  As existing branch: {}\n  As new branch: {}",
                     "Error:".red(),
-                    branch_name,
+                    worktree_and_branch,
                     existing_err,
                     new_err
                 );
@@ -60,14 +75,23 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
         }
     }
 
+    let worktree_and_branch = if target_branch == worktree_name {
+        worktree_name.clone()
+    } else {
+        format!("{} (branch: {})", worktree_name, target_branch)
+    };
     if is_new_branch {
         println!(
             "{} {}",
             "✓ Created new branch and worktree:".green(),
-            branch_name.bold()
+            worktree_and_branch.bold()
         );
     } else {
-        println!("{} {}", "✓ Created worktree:".green(), branch_name.bold());
+        println!(
+            "{} {}",
+            "✓ Created worktree:".green(),
+            worktree_and_branch.bold()
+        );
     }
     println!("{}", format!("Path: {}", worktree_path_str).dimmed());
 
@@ -149,6 +173,18 @@ fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &str) -
     }
 
     !project_root.join(candidate).exists()
+}
+
+fn resolve_target_branch(name: &str, track: Option<&str>) -> Result<String, String> {
+    match track {
+        Some(track_ref) => tracked_branch_name(track_ref).ok_or_else(|| {
+            format!(
+                "Invalid tracking branch '{}'. Use '<remote>/<branch>' or 'refs/remotes/<remote>/<branch>'.",
+                track_ref
+            )
+        }).map(str::to_string),
+        None => Ok(name.to_string()),
+    }
 }
 
 pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathBuf, String> {
@@ -449,5 +485,23 @@ mod tests {
         assert!(!re.is_match("1.0"));
         assert!(!re.is_match("1"));
         assert!(!re.is_match("latest"));
+    }
+
+    #[test]
+    fn resolve_target_branch_defaults_to_name_without_track() {
+        let result = resolve_target_branch("foo", None).unwrap();
+        assert_eq!(result, "foo");
+    }
+
+    #[test]
+    fn resolve_target_branch_uses_remote_branch_part() {
+        let result = resolve_target_branch("foo", Some("origin/feature/new-ui")).unwrap();
+        assert_eq!(result, "feature/new-ui");
+    }
+
+    #[test]
+    fn resolve_target_branch_rejects_non_remote_ref() {
+        let result = resolve_target_branch("foo", Some("refs/heads/feature/new-ui"));
+        assert!(result.is_err());
     }
 }

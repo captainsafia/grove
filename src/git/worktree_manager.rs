@@ -160,14 +160,32 @@ pub fn add_worktree(
     create_branch: bool,
     track: Option<&str>,
 ) -> Result<(), String> {
+    if let Some(track_branch) = track {
+        ensure_tracking_reference(context, track_branch)?;
+    }
+
+    let args = build_add_worktree_args(worktree_path, branch_name, create_branch, track);
+
+    git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
+    if let Some(track_branch) = track {
+        set_branch_upstream(context, branch_name, track_branch)?;
+    }
+    Ok(())
+}
+
+fn build_add_worktree_args<'a>(
+    worktree_path: &'a str,
+    branch_name: &'a str,
+    create_branch: bool,
+    track: Option<&'a str>,
+) -> Vec<&'a str> {
     let mut args = vec!["worktree", "add"];
 
     if create_branch {
         args.push("-b");
         args.push(branch_name);
-        if let Some(track_branch) = track {
+        if track.is_some() {
             args.push("--track");
-            args.push(track_branch);
         }
         args.push(worktree_path);
         if let Some(track_branch) = track {
@@ -178,8 +196,90 @@ pub fn add_worktree(
         args.push(branch_name);
     }
 
-    git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
+    args
+}
+
+fn ensure_tracking_reference(context: &RepoContext, track_ref: &str) -> Result<(), String> {
+    if reference_exists(context, track_ref) {
+        return Ok(());
+    }
+
+    let (remote, branch) = parse_remote_tracking_reference(track_ref).ok_or_else(|| {
+        format!(
+            "Tracking reference '{}' does not exist. Use a valid remote-tracking branch like 'origin/main'.",
+            track_ref
+        )
+    })?;
+
+    let canonical_ref = format!("refs/remotes/{}/{}", remote, branch);
+    if reference_exists(context, &canonical_ref) {
+        return Ok(());
+    }
+
+    let fetch_refspec = format!("{}:{}", branch, canonical_ref);
+    git_raw(context, &["fetch", remote, &fetch_refspec])
+        .map_err(|e| format!("Failed to fetch tracking branch '{}': {}", track_ref, e))?;
+
+    if reference_exists(context, track_ref) || reference_exists(context, &canonical_ref) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Tracking reference '{}' is still unavailable after fetching from remote '{}'.",
+            track_ref, remote
+        ))
+    }
+}
+
+fn reference_exists(context: &RepoContext, reference: &str) -> bool {
+    git_raw(context, &["rev-parse", "--verify", reference]).is_ok()
+}
+
+fn parse_remote_tracking_reference(reference: &str) -> Option<(&str, &str)> {
+    let normalized = if let Some(rest) = reference.strip_prefix("refs/remotes/") {
+        rest
+    } else if reference.starts_with("refs/") {
+        return None;
+    } else {
+        reference
+    };
+
+    let (remote, branch) = normalized.split_once('/')?;
+    if remote.is_empty() || branch.is_empty() {
+        return None;
+    }
+
+    Some((remote, branch))
+}
+
+pub fn tracked_branch_name(reference: &str) -> Option<&str> {
+    parse_remote_tracking_reference(reference).map(|(_, branch)| branch)
+}
+
+fn set_branch_upstream(
+    context: &RepoContext,
+    branch_name: &str,
+    track_ref: &str,
+) -> Result<(), String> {
+    let upstream = normalize_tracking_reference(track_ref);
+    git_raw(
+        context,
+        &["branch", "--set-upstream-to", &upstream, branch_name],
+    )
+    .map_err(|e| {
+        format!(
+            "Failed to set upstream '{}' for branch '{}': {}",
+            upstream, branch_name, e
+        )
+    })?;
     Ok(())
+}
+
+fn normalize_tracking_reference(track_ref: &str) -> String {
+    if let Some((remote, branch)) = parse_remote_tracking_reference(track_ref) {
+        return format!("{}/{}", remote, branch);
+    }
+
+    track_ref.to_string()
 }
 
 pub fn remove_worktree(
@@ -504,6 +604,103 @@ mod tests {
         assert_eq!(
             found.map(|wt| wt.branch.as_str()),
             Some("feature/my-branch")
+        );
+    }
+
+    #[test]
+    fn build_add_worktree_args_for_new_branch_with_track() {
+        let args = build_add_worktree_args(
+            "/tmp/repo/pr-9148",
+            "pr-9148",
+            true,
+            Some("origin/some-remote-branch"),
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "worktree",
+                "add",
+                "-b",
+                "pr-9148",
+                "--track",
+                "/tmp/repo/pr-9148",
+                "origin/some-remote-branch",
+            ]
+        );
+    }
+
+    #[test]
+    fn build_add_worktree_args_for_new_branch_without_track() {
+        let args = build_add_worktree_args("/tmp/repo/feature", "feature", true, None);
+
+        assert_eq!(
+            args,
+            vec!["worktree", "add", "-b", "feature", "/tmp/repo/feature"]
+        );
+    }
+
+    #[test]
+    fn build_add_worktree_args_for_existing_branch_ignores_track() {
+        let args = build_add_worktree_args(
+            "/tmp/repo/existing",
+            "existing",
+            false,
+            Some("origin/existing"),
+        );
+
+        assert_eq!(
+            args,
+            vec!["worktree", "add", "/tmp/repo/existing", "existing"]
+        );
+    }
+
+    #[test]
+    fn parse_remote_tracking_reference_short_form() {
+        assert_eq!(
+            parse_remote_tracking_reference("origin/feature/test"),
+            Some(("origin", "feature/test"))
+        );
+    }
+
+    #[test]
+    fn parse_remote_tracking_reference_full_ref_form() {
+        assert_eq!(
+            parse_remote_tracking_reference("refs/remotes/upstream/main"),
+            Some(("upstream", "main"))
+        );
+    }
+
+    #[test]
+    fn parse_remote_tracking_reference_rejects_non_remote_refs() {
+        assert_eq!(
+            parse_remote_tracking_reference("refs/heads/feature/test"),
+            None
+        );
+        assert_eq!(parse_remote_tracking_reference("origin"), None);
+    }
+
+    #[test]
+    fn tracked_branch_name_returns_remote_branch_part() {
+        assert_eq!(
+            tracked_branch_name("origin/cursor/track-flag-worktree-issue-94b3"),
+            Some("cursor/track-flag-worktree-issue-94b3")
+        );
+    }
+
+    #[test]
+    fn normalize_tracking_reference_for_full_ref() {
+        assert_eq!(
+            normalize_tracking_reference("refs/remotes/origin/feature/test"),
+            "origin/feature/test"
+        );
+    }
+
+    #[test]
+    fn normalize_tracking_reference_keeps_short_form() {
+        assert_eq!(
+            normalize_tracking_reference("origin/feature/test"),
+            "origin/feature/test"
         );
     }
 }
