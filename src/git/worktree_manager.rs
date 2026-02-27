@@ -250,6 +250,10 @@ fn parse_remote_tracking_reference(reference: &str) -> Option<(&str, &str)> {
     Some((remote, branch))
 }
 
+pub fn tracked_branch_name(reference: &str) -> Option<&str> {
+    parse_remote_tracking_reference(reference).map(|(_, branch)| branch)
+}
+
 pub fn remove_worktree(
     context: &RepoContext,
     worktree_path: &str,
@@ -646,5 +650,13 @@ mod tests {
             None
         );
         assert_eq!(parse_remote_tracking_reference("origin"), None);
+    }
+
+    #[test]
+    fn tracked_branch_name_returns_remote_branch_part() {
+        assert_eq!(
+            tracked_branch_name("origin/cursor/track-flag-worktree-issue-94b3"),
+            Some("cursor/track-flag-worktree-issue-94b3")
+        );
     }
 }

@@ -73,7 +73,7 @@ struct Cli {
 enum Commands {
     /// Create a new worktree
     Add {
-        /// Branch name (optional; creates new branch if it doesn't exist)
+        /// Worktree name (optional; also branch name unless --track is used)
         #[arg(value_parser = validate_branch_name)]
         name: Option<String>,
         /// Set up tracking for the specified remote branch
