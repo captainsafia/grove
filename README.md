@@ -82,6 +82,13 @@ Create a new worktree for a branch:
 grove add feature/new-feature
 ```
 
+Create a new worktree with an auto-generated adjective-noun name:
+
+```bash
+grove add
+# Example generated name: quiet-meadow
+```
+
 Track a remote branch:
 
 ```bash
@@ -302,7 +309,7 @@ grove self-update --pr 42
 ## Commands
 
 - `grove init <git-url>` - Create a new worktree setup
-- `grove add <name> [options]` - Create a new worktree
+- `grove add [name] [options]` - Create a new worktree
 - `grove go <name>` - Navigate to a worktree
 - `grove remove <name> [options]` - Remove a worktree
 - `grove list [options]` - List all worktrees

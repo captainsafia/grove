@@ -1,8 +1,9 @@
 use colored::Colorize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::git::{add_worktree, discover_repo, project_root};
+use crate::git::{add_worktree, branch_exists, discover_repo, project_root, RepoContext};
 use crate::utils::{read_repo_config, BootstrapCommand};
 
 #[derive(Debug)]
@@ -12,7 +13,57 @@ struct BootstrapSummary {
     failed: Vec<(String, String)>,
 }
 
-pub fn run(name: &str, track: Option<&str>) {
+const DEFAULT_NAME_ATTEMPTS: u64 = 64;
+const DEFAULT_ADJECTIVES: &[&str] = &[
+    "amber", "autumn", "brisk", "calm", "cedar", "clear", "cobalt", "cosmic", "dawn", "deep",
+    "eager", "ember", "gentle", "golden", "granite", "green", "hidden", "hollow", "icy", "jolly",
+    "keen", "lively", "lunar", "mellow", "misty", "modern", "morning", "nimble", "noble", "quiet",
+    "rapid", "rustic", "silver", "steady", "swift", "tidy", "urban", "vivid", "warm", "wild",
+];
+const DEFAULT_NOUNS: &[&str] = &[
+    "brook",
+    "canopy",
+    "canyon",
+    "cliff",
+    "cloud",
+    "creek",
+    "dawn",
+    "delta",
+    "field",
+    "forest",
+    "garden",
+    "grove",
+    "harbor",
+    "horizon",
+    "island",
+    "lake",
+    "leaf",
+    "meadow",
+    "mesa",
+    "moonlight",
+    "mountain",
+    "orchard",
+    "peak",
+    "pine",
+    "planet",
+    "prairie",
+    "quartz",
+    "rain",
+    "ridge",
+    "river",
+    "shadow",
+    "shore",
+    "sky",
+    "spring",
+    "stone",
+    "summit",
+    "thunder",
+    "trail",
+    "valley",
+    "willow",
+];
+
+pub fn run(name: Option<&str>, track: Option<&str>) {
     let repo = match discover_repo() {
         Ok(m) => m,
         Err(e) => {
@@ -22,7 +73,14 @@ pub fn run(name: &str, track: Option<&str>) {
     };
 
     let project_root = project_root(&repo);
-    let worktree_path = match get_worktree_path(name, project_root) {
+    let (branch_name, generated_name) = match resolve_worktree_name(name, &repo, project_root) {
+        Ok(name) => name,
+        Err(e) => {
+            eprintln!("{} {}", "Error:".red(), e);
+            std::process::exit(1);
+        }
+    };
+    let worktree_path = match get_worktree_path(&branch_name, project_root) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -34,15 +92,15 @@ pub fn run(name: &str, track: Option<&str>) {
 
     // Try to create worktree for existing branch first, fall back to creating new branch
     let mut is_new_branch = false;
-    if let Err(_existing_err) = add_worktree(&repo, &worktree_path_str, name, false, track) {
-        match add_worktree(&repo, &worktree_path_str, name, true, track) {
+    if let Err(existing_err) = add_worktree(&repo, &worktree_path_str, &branch_name, false, track) {
+        match add_worktree(&repo, &worktree_path_str, &branch_name, true, track) {
             Ok(()) => is_new_branch = true,
             Err(new_err) => {
                 eprintln!(
                     "{} Failed to create worktree for '{}':\n  As existing branch: {}\n  As new branch: {}",
                     "Error:".red(),
-                    name,
-                    _existing_err,
+                    branch_name,
+                    existing_err,
                     new_err
                 );
                 std::process::exit(1);
@@ -50,14 +108,22 @@ pub fn run(name: &str, track: Option<&str>) {
         }
     }
 
+    if generated_name {
+        println!(
+            "{} {}",
+            "✓ Generated worktree name:".green(),
+            branch_name.bold()
+        );
+    }
+
     if is_new_branch {
         println!(
             "{} {}",
             "✓ Created new branch and worktree:".green(),
-            name.bold()
+            branch_name.bold()
         );
     } else {
-        println!("{} {}", "✓ Created worktree:".green(), name.bold());
+        println!("{} {}", "✓ Created worktree:".green(), branch_name.bold());
     }
     println!("{}", format!("Path: {}", worktree_path_str).dimmed());
 
@@ -104,6 +170,69 @@ pub fn run(name: &str, track: Option<&str>) {
             .dimmed()
         );
     }
+}
+
+fn resolve_worktree_name(
+    provided_name: Option<&str>,
+    repo: &RepoContext,
+    project_root: &Path,
+) -> Result<(String, bool), String> {
+    if let Some(name) = provided_name {
+        return Ok((name.to_string(), false));
+    }
+
+    let generated = choose_default_worktree_name(repo, project_root)?;
+    Ok((generated, true))
+}
+
+fn choose_default_worktree_name(repo: &RepoContext, project_root: &Path) -> Result<String, String> {
+    let seed = default_name_seed();
+    for attempt in 0..DEFAULT_NAME_ATTEMPTS {
+        let candidate = generate_default_worktree_name_with_seed(seed, attempt);
+        if is_name_available(repo, project_root, &candidate) {
+            return Ok(candidate);
+        }
+    }
+
+    Err(
+        "Unable to generate a unique default worktree name; please provide one explicitly."
+            .to_string(),
+    )
+}
+
+fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &str) -> bool {
+    if branch_exists(repo, candidate) {
+        return false;
+    }
+
+    !project_root.join(candidate).exists()
+}
+
+fn default_name_seed() -> u64 {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let nanos = duration.as_nanos() as u64;
+    nanos ^ ((std::process::id() as u64) << 32)
+}
+
+fn generate_default_worktree_name_with_seed(seed: u64, attempt: u64) -> String {
+    let adjective_index =
+        (splitmix64(seed.wrapping_add(attempt)) % DEFAULT_ADJECTIVES.len() as u64) as usize;
+    let noun_seed = seed.wrapping_add(attempt.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    let noun_index = (splitmix64(noun_seed) % DEFAULT_NOUNS.len() as u64) as usize;
+
+    format!(
+        "{}-{}",
+        DEFAULT_ADJECTIVES[adjective_index], DEFAULT_NOUNS[noun_index]
+    )
+}
+
+fn splitmix64(mut value: u64) -> u64 {
+    value = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
 }
 
 pub fn get_worktree_path(branch_name: &str, project_root: &Path) -> Result<PathBuf, String> {
@@ -289,6 +418,22 @@ mod tests {
         let project_root = env::current_dir().unwrap();
         let result = get_worktree_path("feature-123", &project_root);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn generated_default_name_uses_adjective_noun_format() {
+        let generated = generate_default_worktree_name_with_seed(42, 0);
+        let parts: Vec<&str> = generated.split('-').collect();
+        assert_eq!(parts.len(), 2);
+        assert!(DEFAULT_ADJECTIVES.contains(&parts[0]));
+        assert!(DEFAULT_NOUNS.contains(&parts[1]));
+    }
+
+    #[test]
+    fn generated_default_name_variation_across_attempts() {
+        let name_a = generate_default_worktree_name_with_seed(42, 0);
+        let name_b = generate_default_worktree_name_with_seed(42, 1);
+        assert_ne!(name_a, name_b);
     }
 
     #[test]
