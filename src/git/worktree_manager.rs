@@ -160,15 +160,16 @@ pub fn add_worktree(
     create_branch: bool,
     track: Option<&str>,
 ) -> Result<(), String> {
-    if create_branch {
-        if let Some(track_branch) = track {
-            ensure_tracking_reference(context, track_branch)?;
-        }
+    if let Some(track_branch) = track {
+        ensure_tracking_reference(context, track_branch)?;
     }
 
     let args = build_add_worktree_args(worktree_path, branch_name, create_branch, track);
 
     git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
+    if let Some(track_branch) = track {
+        set_branch_upstream(context, branch_name, track_branch)?;
+    }
     Ok(())
 }
 
@@ -252,6 +253,33 @@ fn parse_remote_tracking_reference(reference: &str) -> Option<(&str, &str)> {
 
 pub fn tracked_branch_name(reference: &str) -> Option<&str> {
     parse_remote_tracking_reference(reference).map(|(_, branch)| branch)
+}
+
+fn set_branch_upstream(
+    context: &RepoContext,
+    branch_name: &str,
+    track_ref: &str,
+) -> Result<(), String> {
+    let upstream = normalize_tracking_reference(track_ref);
+    git_raw(
+        context,
+        &["branch", "--set-upstream-to", &upstream, branch_name],
+    )
+    .map_err(|e| {
+        format!(
+            "Failed to set upstream '{}' for branch '{}': {}",
+            upstream, branch_name, e
+        )
+    })?;
+    Ok(())
+}
+
+fn normalize_tracking_reference(track_ref: &str) -> String {
+    if let Some((remote, branch)) = parse_remote_tracking_reference(track_ref) {
+        return format!("{}/{}", remote, branch);
+    }
+
+    track_ref.to_string()
 }
 
 pub fn remove_worktree(
@@ -657,6 +685,22 @@ mod tests {
         assert_eq!(
             tracked_branch_name("origin/cursor/track-flag-worktree-issue-94b3"),
             Some("cursor/track-flag-worktree-issue-94b3")
+        );
+    }
+
+    #[test]
+    fn normalize_tracking_reference_for_full_ref() {
+        assert_eq!(
+            normalize_tracking_reference("refs/remotes/origin/feature/test"),
+            "origin/feature/test"
+        );
+    }
+
+    #[test]
+    fn normalize_tracking_reference_keeps_short_form() {
+        assert_eq!(
+            normalize_tracking_reference("origin/feature/test"),
+            "origin/feature/test"
         );
     }
 }
