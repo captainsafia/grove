@@ -116,7 +116,7 @@ The `site/install.sh` script is the curl-pipe-bash installer. When modifying:
 
 ## Commit Message Format
 
-This repository uses [Conventional Commits](https://www.conventionalcommits.org/). All commits must follow this format:
+This repository uses [Conventional Commits](https://www.conventionalcommits.org/). All commits and PR titles must follow this format:
 
 ```
 <type>: <subject>
