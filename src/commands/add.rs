@@ -55,7 +55,7 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     let mut is_new_branch = false;
     if let Err(existing_err) = add_worktree(&repo, &worktree_path_str, &target_branch, false, track)
     {
-        match add_worktree(&repo, &worktree_path_str, target_branch, true, track) {
+        match add_worktree(&repo, &worktree_path_str, &target_branch, true, track) {
             Ok(()) => is_new_branch = true,
             Err(new_err) => {
                 let worktree_and_branch = if target_branch == worktree_name {
