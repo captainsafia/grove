@@ -87,6 +87,7 @@ Create a new worktree with an auto-generated adjective-noun name:
 ```bash
 grove add
 # Example generated name: quiet-meadow
+# If .groverc sets "branchPrefix": "safia", example: safia/quiet-meadow
 ```
 
 Track a remote branch:
@@ -99,6 +100,7 @@ Bootstrap a newly created worktree with project-scoped commands:
 
 ```json
 {
+  "branchPrefix": "safia",
   "bootstrap": {
     "commands": [
       { "program": "npm", "args": ["install"] },
@@ -109,6 +111,8 @@ Bootstrap a newly created worktree with project-scoped commands:
 ```
 
 Save this as `.groverc` in your Grove project root (the directory that contains your bare clone, for example `repo/.groverc` next to `repo/repo.git`).
+
+When `grove add` is called without an explicit branch name, Grove generates an adjective-noun name and prepends `branchPrefix` when configured.
 
 When `grove add` creates a worktree, it runs each bootstrap command in order inside that new worktree directory.
 

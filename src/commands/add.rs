@@ -6,8 +6,8 @@ use crate::git::{
     add_worktree, branch_exists, discover_repo, project_root, tracked_branch_name, RepoContext,
 };
 use crate::utils::{
-    default_worktree_name_seed, generate_default_worktree_name, read_repo_config, BootstrapCommand,
-    DEFAULT_WORKTREE_NAME_ATTEMPTS,
+    default_worktree_name_seed, generate_default_worktree_name, read_repo_config,
+    trim_trailing_branch_slashes, BootstrapCommand, RepoConfig, DEFAULT_WORKTREE_NAME_ATTEMPTS,
 };
 
 #[derive(Debug)]
@@ -27,7 +27,14 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     };
 
     let project_root = project_root(&repo);
-    let worktree_name = match resolve_worktree_name(name, &repo, project_root) {
+    let repo_config = match read_repo_config(project_root) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("{} {}", "Warning:".yellow(), e);
+            RepoConfig::default()
+        }
+    };
+    let worktree_name = match resolve_worktree_name(name, &repo, project_root, &repo_config) {
         Ok(name) => name,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -95,14 +102,6 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     }
     println!("{}", format!("Path: {}", worktree_path_str).dimmed());
 
-    let repo_config = match read_repo_config(project_root) {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("{} {}", "Warning:".yellow(), e);
-            return;
-        }
-    };
-
     let commands = match repo_config.bootstrap {
         Some(bootstrap) if !bootstrap.commands.is_empty() => bootstrap.commands,
         _ => return,
@@ -144,18 +143,24 @@ fn resolve_worktree_name(
     provided_name: Option<&str>,
     repo: &RepoContext,
     project_root: &Path,
+    repo_config: &RepoConfig,
 ) -> Result<String, String> {
     if let Some(name) = provided_name {
         return Ok(name.to_string());
     }
 
-    choose_default_worktree_name(repo, project_root)
+    choose_default_worktree_name(repo, project_root, repo_config.branch_prefix.as_deref())
 }
 
-fn choose_default_worktree_name(repo: &RepoContext, project_root: &Path) -> Result<String, String> {
+fn choose_default_worktree_name(
+    repo: &RepoContext,
+    project_root: &Path,
+    branch_prefix: Option<&str>,
+) -> Result<String, String> {
     let seed = default_worktree_name_seed();
     for attempt in 0..DEFAULT_WORKTREE_NAME_ATTEMPTS {
-        let candidate = generate_default_worktree_name(seed, attempt);
+        let generated_name = generate_default_worktree_name(seed, attempt);
+        let candidate = apply_branch_prefix(branch_prefix, &generated_name);
         if is_name_available(repo, project_root, &candidate) {
             return Ok(candidate);
         }
@@ -173,6 +178,17 @@ fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &str) -
     }
 
     !project_root.join(candidate).exists()
+}
+
+fn apply_branch_prefix(branch_prefix: Option<&str>, generated_name: &str) -> String {
+    let Some(prefix) = branch_prefix
+        .map(trim_trailing_branch_slashes)
+        .filter(|prefix| !prefix.is_empty())
+    else {
+        return generated_name.to_string();
+    };
+
+    format!("{}/{}", prefix, generated_name)
 }
 
 fn resolve_target_branch(name: &str, track: Option<&str>) -> Result<String, String> {
@@ -503,5 +519,23 @@ mod tests {
     fn resolve_target_branch_rejects_non_remote_ref() {
         let result = resolve_target_branch("foo", Some("refs/heads/feature/new-ui"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn apply_branch_prefix_adds_separator_when_configured() {
+        let prefixed = apply_branch_prefix(Some("safia"), "quiet-meadow");
+        assert_eq!(prefixed, "safia/quiet-meadow");
+    }
+
+    #[test]
+    fn apply_branch_prefix_trims_whitespace_and_trailing_slashes() {
+        let prefixed = apply_branch_prefix(Some("  teams/safia/  "), "quiet-meadow");
+        assert_eq!(prefixed, "teams/safia/quiet-meadow");
+    }
+
+    #[test]
+    fn apply_branch_prefix_ignores_empty_prefix() {
+        let unprefixed = apply_branch_prefix(Some("  /  "), "quiet-meadow");
+        assert_eq!(unprefixed, "quiet-meadow");
     }
 }
