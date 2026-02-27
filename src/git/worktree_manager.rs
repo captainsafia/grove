@@ -160,14 +160,25 @@ pub fn add_worktree(
     create_branch: bool,
     track: Option<&str>,
 ) -> Result<(), String> {
+    let args = build_add_worktree_args(worktree_path, branch_name, create_branch, track);
+
+    git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
+    Ok(())
+}
+
+fn build_add_worktree_args<'a>(
+    worktree_path: &'a str,
+    branch_name: &'a str,
+    create_branch: bool,
+    track: Option<&'a str>,
+) -> Vec<&'a str> {
     let mut args = vec!["worktree", "add"];
 
     if create_branch {
         args.push("-b");
         args.push(branch_name);
-        if let Some(track_branch) = track {
+        if track.is_some() {
             args.push("--track");
-            args.push(track_branch);
         }
         args.push(worktree_path);
         if let Some(track_branch) = track {
@@ -178,8 +189,7 @@ pub fn add_worktree(
         args.push(branch_name);
     }
 
-    git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
-    Ok(())
+    args
 }
 
 pub fn remove_worktree(
@@ -504,6 +514,54 @@ mod tests {
         assert_eq!(
             found.map(|wt| wt.branch.as_str()),
             Some("feature/my-branch")
+        );
+    }
+
+    #[test]
+    fn build_add_worktree_args_for_new_branch_with_track() {
+        let args = build_add_worktree_args(
+            "/tmp/repo/pr-9148",
+            "pr-9148",
+            true,
+            Some("origin/some-remote-branch"),
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "worktree",
+                "add",
+                "-b",
+                "pr-9148",
+                "--track",
+                "/tmp/repo/pr-9148",
+                "origin/some-remote-branch",
+            ]
+        );
+    }
+
+    #[test]
+    fn build_add_worktree_args_for_new_branch_without_track() {
+        let args = build_add_worktree_args("/tmp/repo/feature", "feature", true, None);
+
+        assert_eq!(
+            args,
+            vec!["worktree", "add", "-b", "feature", "/tmp/repo/feature"]
+        );
+    }
+
+    #[test]
+    fn build_add_worktree_args_for_existing_branch_ignores_track() {
+        let args = build_add_worktree_args(
+            "/tmp/repo/existing",
+            "existing",
+            false,
+            Some("origin/existing"),
+        );
+
+        assert_eq!(
+            args,
+            vec!["worktree", "add", "/tmp/repo/existing", "existing"]
         );
     }
 }
