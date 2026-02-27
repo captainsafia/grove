@@ -17,6 +17,12 @@ struct BootstrapSummary {
     failed: Vec<(String, String)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorktreeSpec {
+    directory_name: String,
+    branch_name: String,
+}
+
 pub fn run(name: Option<&str>, track: Option<&str>) {
     let repo = match discover_repo() {
         Ok(m) => m,
@@ -34,14 +40,14 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
             RepoConfig::default()
         }
     };
-    let worktree_name = match resolve_worktree_name(name, &repo, project_root, &repo_config) {
-        Ok(name) => name,
+    let worktree = match resolve_worktree_spec(name, &repo, project_root, &repo_config) {
+        Ok(worktree) => worktree,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
             std::process::exit(1);
         }
     };
-    let worktree_path = match get_worktree_path(&worktree_name, project_root) {
+    let worktree_path = match get_worktree_path(&worktree.directory_name, project_root) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -50,7 +56,7 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     };
 
     let worktree_path_str = worktree_path.to_string_lossy().to_string();
-    let target_branch = match resolve_target_branch(&worktree_name, track) {
+    let target_branch = match resolve_target_branch(&worktree.branch_name, track) {
         Ok(branch) => branch,
         Err(e) => {
             eprintln!("{} {}", "Error:".red(), e);
@@ -65,10 +71,10 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
         match add_worktree(&repo, &worktree_path_str, &target_branch, true, track) {
             Ok(()) => is_new_branch = true,
             Err(new_err) => {
-                let worktree_and_branch = if target_branch == worktree_name {
-                    worktree_name.clone()
+                let worktree_and_branch = if target_branch == worktree.directory_name {
+                    worktree.directory_name.clone()
                 } else {
-                    format!("{} (branch: {})", worktree_name, target_branch)
+                    format!("{} (branch: {})", worktree.directory_name, target_branch)
                 };
                 eprintln!(
                     "{} Failed to create worktree for '{}':\n  As existing branch: {}\n  As new branch: {}",
@@ -82,10 +88,10 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
         }
     }
 
-    let worktree_and_branch = if target_branch == worktree_name {
-        worktree_name.clone()
+    let worktree_and_branch = if target_branch == worktree.directory_name {
+        worktree.directory_name.clone()
     } else {
-        format!("{} (branch: {})", worktree_name, target_branch)
+        format!("{} (branch: {})", worktree.directory_name, target_branch)
     };
     if is_new_branch {
         println!(
@@ -139,28 +145,31 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     }
 }
 
-fn resolve_worktree_name(
+fn resolve_worktree_spec(
     provided_name: Option<&str>,
     repo: &RepoContext,
     project_root: &Path,
     repo_config: &RepoConfig,
-) -> Result<String, String> {
+) -> Result<WorktreeSpec, String> {
     if let Some(name) = provided_name {
-        return Ok(name.to_string());
+        return Ok(WorktreeSpec {
+            directory_name: name.to_string(),
+            branch_name: name.to_string(),
+        });
     }
 
-    choose_default_worktree_name(repo, project_root, repo_config.branch_prefix.as_deref())
+    choose_default_worktree_spec(repo, project_root, repo_config.branch_prefix.as_deref())
 }
 
-fn choose_default_worktree_name(
+fn choose_default_worktree_spec(
     repo: &RepoContext,
     project_root: &Path,
     branch_prefix: Option<&str>,
-) -> Result<String, String> {
+) -> Result<WorktreeSpec, String> {
     let seed = default_worktree_name_seed();
     for attempt in 0..DEFAULT_WORKTREE_NAME_ATTEMPTS {
         let generated_name = generate_default_worktree_name(seed, attempt);
-        let candidate = apply_branch_prefix(branch_prefix, &generated_name);
+        let candidate = generated_worktree_spec(branch_prefix, &generated_name);
         if is_name_available(repo, project_root, &candidate) {
             return Ok(candidate);
         }
@@ -172,12 +181,19 @@ fn choose_default_worktree_name(
     )
 }
 
-fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &str) -> bool {
-    if branch_exists(repo, candidate) {
+fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &WorktreeSpec) -> bool {
+    if branch_exists(repo, &candidate.branch_name) {
         return false;
     }
 
-    !project_root.join(candidate).exists()
+    !project_root.join(&candidate.directory_name).exists()
+}
+
+fn generated_worktree_spec(branch_prefix: Option<&str>, generated_name: &str) -> WorktreeSpec {
+    WorktreeSpec {
+        directory_name: generated_name.to_string(),
+        branch_name: apply_branch_prefix(branch_prefix, generated_name),
+    }
 }
 
 fn apply_branch_prefix(branch_prefix: Option<&str>, generated_name: &str) -> String {
@@ -537,5 +553,19 @@ mod tests {
     fn apply_branch_prefix_ignores_empty_prefix() {
         let unprefixed = apply_branch_prefix(Some("  /  "), "quiet-meadow");
         assert_eq!(unprefixed, "quiet-meadow");
+    }
+
+    #[test]
+    fn generated_worktree_spec_applies_prefix_only_to_branch_name() {
+        let spec = generated_worktree_spec(Some("safia"), "quiet-meadow");
+        assert_eq!(spec.directory_name, "quiet-meadow");
+        assert_eq!(spec.branch_name, "safia/quiet-meadow");
+    }
+
+    #[test]
+    fn generated_worktree_spec_without_prefix_keeps_names_equal() {
+        let spec = generated_worktree_spec(None, "quiet-meadow");
+        assert_eq!(spec.directory_name, "quiet-meadow");
+        assert_eq!(spec.branch_name, "quiet-meadow");
     }
 }
