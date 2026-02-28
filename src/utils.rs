@@ -109,8 +109,15 @@ pub fn read_repo_config(project_root: &Path) -> Result<RepoConfig, String> {
         }
     };
 
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Invalid repo config at {}: {}", path.display(), e))
+    let mut config: RepoConfig = serde_json::from_str(&content)
+        .map_err(|e| format!("Invalid repo config at {}: {}", path.display(), e))?;
+
+    if let Some(prefix) = config.branch_prefix.as_deref() {
+        config.branch_prefix = sanitize_branch_prefix(prefix)
+            .map_err(|e| format!("Invalid repo config at {}: {}", path.display(), e))?;
+    }
+
+    Ok(config)
 }
 
 // ============================================================================
@@ -196,6 +203,21 @@ pub fn extract_repo_name(git_url: &str) -> Result<String, String> {
 /// Preserves internal slashes (e.g. "feature/my-branch") for nested branch names.
 pub fn trim_trailing_branch_slashes(value: &str) -> &str {
     value.trim().trim_end_matches('/')
+}
+
+/// Sanitize a branchPrefix value from config.
+/// Returns None for empty values after trimming.
+pub fn sanitize_branch_prefix(value: &str) -> Result<Option<String>, String> {
+    let normalized = trim_trailing_branch_slashes(value);
+    if normalized.is_empty() {
+        return Ok(None);
+    }
+
+    if normalized.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Ok(Some(normalized.to_string()));
+    }
+
+    Err("Invalid branchPrefix: must contain only alphanumeric characters".to_string())
 }
 
 pub const DEFAULT_WORKTREE_NAME_ATTEMPTS: u64 = 64;
@@ -738,14 +760,30 @@ mod tests {
         fs::write(
             dir.join(".groverc"),
             r#"{
-  "branchPrefix": "teams/safia"
+  "branchPrefix": "  safia123/  "
 }"#,
         )
         .unwrap();
 
         let config = read_repo_config(&dir).unwrap();
-        assert_eq!(config.branch_prefix.as_deref(), Some("teams/safia"));
+        assert_eq!(config.branch_prefix.as_deref(), Some("safia123"));
         assert!(config.bootstrap.is_none());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn read_repo_config_rejects_non_alphanumeric_branch_prefix() {
+        let dir = make_temp_dir("repo-config-invalid-prefix");
+        fs::write(
+            dir.join(".groverc"),
+            r#"{
+  "branchPrefix": "teams/safia"
+}"#,
+        )
+        .unwrap();
+
+        let err = read_repo_config(&dir).unwrap_err();
+        assert!(err.contains("branchPrefix"));
         let _ = fs::remove_dir_all(dir);
     }
 
@@ -765,6 +803,28 @@ mod tests {
         let err = read_repo_config(&dir).unwrap_err();
         assert!(err.contains("Invalid repo config"));
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn sanitize_branch_prefix_accepts_alphanumeric_value() {
+        assert_eq!(
+            sanitize_branch_prefix("  safia123  ").unwrap(),
+            Some("safia123".to_string())
+        );
+    }
+
+    #[test]
+    fn sanitize_branch_prefix_trims_trailing_slashes() {
+        assert_eq!(
+            sanitize_branch_prefix("safia123/").unwrap(),
+            Some("safia123".to_string())
+        );
+    }
+
+    #[test]
+    fn sanitize_branch_prefix_rejects_non_alphanumeric_value() {
+        let err = sanitize_branch_prefix("team/safia").unwrap_err();
+        assert!(err.contains("alphanumeric"));
     }
 
     // --- extractRepoName tests ---
