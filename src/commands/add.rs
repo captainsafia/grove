@@ -7,7 +7,7 @@ use crate::git::{
 };
 use crate::utils::{
     default_worktree_name_seed, generate_default_worktree_name, read_repo_config,
-    trim_trailing_branch_slashes, BootstrapCommand, RepoConfig, DEFAULT_WORKTREE_NAME_ATTEMPTS,
+    sanitize_branch_prefix, BootstrapCommand, RepoConfig, DEFAULT_WORKTREE_NAME_ATTEMPTS,
 };
 
 #[derive(Debug)]
@@ -169,7 +169,7 @@ fn choose_default_worktree_spec(
     let seed = default_worktree_name_seed();
     for attempt in 0..DEFAULT_WORKTREE_NAME_ATTEMPTS {
         let generated_name = generate_default_worktree_name(seed, attempt);
-        let candidate = generated_worktree_spec(branch_prefix, &generated_name);
+        let candidate = generated_worktree_spec(branch_prefix, &generated_name)?;
         if is_name_available(repo, project_root, &candidate) {
             return Ok(candidate);
         }
@@ -189,22 +189,28 @@ fn is_name_available(repo: &RepoContext, project_root: &Path, candidate: &Worktr
     !project_root.join(&candidate.directory_name).exists()
 }
 
-fn generated_worktree_spec(branch_prefix: Option<&str>, generated_name: &str) -> WorktreeSpec {
-    WorktreeSpec {
+fn generated_worktree_spec(
+    branch_prefix: Option<&str>,
+    generated_name: &str,
+) -> Result<WorktreeSpec, String> {
+    Ok(WorktreeSpec {
         directory_name: generated_name.to_string(),
-        branch_name: apply_branch_prefix(branch_prefix, generated_name),
-    }
+        branch_name: apply_branch_prefix(branch_prefix, generated_name)?,
+    })
 }
 
-fn apply_branch_prefix(branch_prefix: Option<&str>, generated_name: &str) -> String {
-    let Some(prefix) = branch_prefix
-        .map(trim_trailing_branch_slashes)
-        .filter(|prefix| !prefix.is_empty())
-    else {
-        return generated_name.to_string();
+fn apply_branch_prefix(
+    branch_prefix: Option<&str>,
+    generated_name: &str,
+) -> Result<String, String> {
+    let Some(prefix) = branch_prefix else {
+        return Ok(generated_name.to_string());
+    };
+    let Some(prefix) = sanitize_branch_prefix(prefix)? else {
+        return Ok(generated_name.to_string());
     };
 
-    format!("{}/{}", prefix, generated_name)
+    Ok(format!("{}/{}", prefix, generated_name))
 }
 
 fn resolve_target_branch(name: &str, track: Option<&str>) -> Result<String, String> {
@@ -539,32 +545,38 @@ mod tests {
 
     #[test]
     fn apply_branch_prefix_adds_separator_when_configured() {
-        let prefixed = apply_branch_prefix(Some("safia"), "quiet-meadow");
+        let prefixed = apply_branch_prefix(Some("safia"), "quiet-meadow").unwrap();
         assert_eq!(prefixed, "safia/quiet-meadow");
     }
 
     #[test]
     fn apply_branch_prefix_trims_whitespace_and_trailing_slashes() {
-        let prefixed = apply_branch_prefix(Some("  teams/safia/  "), "quiet-meadow");
-        assert_eq!(prefixed, "teams/safia/quiet-meadow");
+        let prefixed = apply_branch_prefix(Some("  safia123/  "), "quiet-meadow").unwrap();
+        assert_eq!(prefixed, "safia123/quiet-meadow");
     }
 
     #[test]
     fn apply_branch_prefix_ignores_empty_prefix() {
-        let unprefixed = apply_branch_prefix(Some("  /  "), "quiet-meadow");
+        let unprefixed = apply_branch_prefix(Some("  /  "), "quiet-meadow").unwrap();
         assert_eq!(unprefixed, "quiet-meadow");
     }
 
     #[test]
+    fn apply_branch_prefix_rejects_non_alphanumeric_prefix() {
+        let err = apply_branch_prefix(Some("teams/safia"), "quiet-meadow").unwrap_err();
+        assert!(err.contains("alphanumeric"));
+    }
+
+    #[test]
     fn generated_worktree_spec_applies_prefix_only_to_branch_name() {
-        let spec = generated_worktree_spec(Some("safia"), "quiet-meadow");
+        let spec = generated_worktree_spec(Some("safia"), "quiet-meadow").unwrap();
         assert_eq!(spec.directory_name, "quiet-meadow");
         assert_eq!(spec.branch_name, "safia/quiet-meadow");
     }
 
     #[test]
     fn generated_worktree_spec_without_prefix_keeps_names_equal() {
-        let spec = generated_worktree_spec(None, "quiet-meadow");
+        let spec = generated_worktree_spec(None, "quiet-meadow").unwrap();
         assert_eq!(spec.directory_name, "quiet-meadow");
         assert_eq!(spec.branch_name, "quiet-meadow");
     }
