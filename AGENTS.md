@@ -114,9 +114,9 @@ The `site/install.sh` script is the curl-pipe-bash installer. When modifying:
 - Maintain support for both x64 and arm64 architectures
 - Keep error handling and user feedback intact
 
-## Commit Message Format
+## Commit Message and PR Title Format
 
-This repository uses [Conventional Commits](https://www.conventionalcommits.org/). All commits and PR titles must follow this format:
+This repository uses [Conventional Commits](https://www.conventionalcommits.org/). All commit messages and PR titles must follow this format:
 
 ```
 <type>: <subject>
@@ -139,6 +139,7 @@ This repository uses [Conventional Commits](https://www.conventionalcommits.org/
 3. **Use imperative mood** ("add" not "added" or "adds")
 4. **Keep subject under 72 characters**
 5. **Reference PR number** when applicable: `(#123)`
+6. **Use the same Conventional Commit format for PR titles**
 
 ### Examples
 

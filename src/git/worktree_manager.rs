@@ -164,7 +164,13 @@ pub fn add_worktree(
         ensure_tracking_reference(context, track_branch)?;
     }
 
-    let args = build_add_worktree_args(worktree_path, branch_name, create_branch, track);
+    let normalized_worktree_path = normalize_path_for_git(worktree_path);
+    let args = build_add_worktree_args(
+        normalized_worktree_path.as_str(),
+        branch_name,
+        create_branch,
+        track,
+    );
 
     git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
     if let Some(track_branch) = track {
@@ -287,11 +293,12 @@ pub fn remove_worktree(
     worktree_path: &str,
     force: bool,
 ) -> Result<(), String> {
+    let normalized_worktree_path = normalize_path_for_git(worktree_path);
     let mut args = vec!["worktree", "remove"];
     if force {
         args.push("--force");
     }
-    args.push(worktree_path);
+    args.push(normalized_worktree_path.as_str());
 
     git_raw(context, &args).map_err(|e| format!("Failed to remove worktree: {}", e))?;
     Ok(())
@@ -500,6 +507,17 @@ fn metadata_created_at(meta: &fs::Metadata) -> Option<DateTime<Utc>> {
     None
 }
 
+fn normalize_path_for_git(path: &str) -> String {
+    if let Some(stripped) = path.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{}", stripped);
+    }
+    if let Some(stripped) = path.strip_prefix(r"\\?\") {
+        return stripped.to_string();
+    }
+
+    path.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -577,6 +595,28 @@ mod tests {
         assert_eq!(worktrees[0].branch.as_deref(), Some("main"));
         assert!(worktrees[1].is_locked);
         assert!(worktrees[2].is_prunable);
+    }
+
+    #[test]
+    fn normalize_path_for_git_strips_windows_extended_prefix() {
+        assert_eq!(
+            normalize_path_for_git(r"\\?\C:\Users\dev\repo\feature-worktree"),
+            r"C:\Users\dev\repo\feature-worktree"
+        );
+    }
+
+    #[test]
+    fn normalize_path_for_git_converts_unc_extended_prefix() {
+        assert_eq!(
+            normalize_path_for_git(r"\\?\UNC\server\share\repo\feature-worktree"),
+            r"\\server\share\repo\feature-worktree"
+        );
+    }
+
+    #[test]
+    fn normalize_path_for_git_preserves_normal_paths() {
+        let path = "/home/dev/repo/feature-worktree";
+        assert_eq!(normalize_path_for_git(path), path);
     }
 
     #[test]
