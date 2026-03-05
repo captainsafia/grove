@@ -68,5 +68,5 @@ pub fn run(git_url: &str) {
     println!();
     println!("{}", "Next steps:".bold());
     println!("  {} {}", "cd".dimmed(), bare_repo_dir);
-    println!("  {} {}", "grove add".dimmed(), "<branch-name>");
+    println!("  {} <branch-name>", "grove add".dimmed());
 }

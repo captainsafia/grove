@@ -8,6 +8,7 @@ mod git;
 mod models;
 mod utils;
 
+use crate::git::normalize_tracking_reference_input;
 use crate::utils::{is_valid_git_url, parse_duration, trim_trailing_branch_slashes};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -62,6 +63,10 @@ fn validate_duration(value: &str) -> Result<String, String> {
     parse_duration(value).map(|_| value.to_string())
 }
 
+fn validate_tracking_reference(value: &str) -> Result<String, String> {
+    normalize_tracking_reference_input(value)
+}
+
 #[derive(Parser)]
 #[command(name = "grove", about = "Grove is a Git worktree management tool", version = VERSION)]
 struct Cli {
@@ -77,7 +82,7 @@ enum Commands {
         #[arg(value_parser = validate_branch_name)]
         name: Option<String>,
         /// Set up tracking for the specified remote branch
-        #[arg(short = 't', long = "track")]
+        #[arg(short = 't', long = "track", value_parser = validate_tracking_reference)]
         track: Option<String>,
     },
     /// Navigate to a worktree by branch name
@@ -243,7 +248,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_branch_name, Cli, Commands};
+    use super::{validate_branch_name, validate_tracking_reference, Cli, Commands};
     use clap::Parser;
 
     #[test]
@@ -257,6 +262,19 @@ mod tests {
     #[test]
     fn validate_branch_name_rejects_empty_after_trimming() {
         assert!(validate_branch_name("///").is_err());
+    }
+
+    #[test]
+    fn validate_tracking_reference_trims_trailing_slashes() {
+        assert_eq!(
+            validate_tracking_reference("origin/feature/my-branch///").unwrap(),
+            "origin/feature/my-branch"
+        );
+    }
+
+    #[test]
+    fn validate_tracking_reference_rejects_empty_path_segments() {
+        assert!(validate_tracking_reference("origin/feature//my-branch").is_err());
     }
 
     #[test]
@@ -284,6 +302,24 @@ mod tests {
         match cli.command {
             Some(Commands::Add { name, track }) => {
                 assert_eq!(name.as_deref(), Some("feature/new-worktree"));
+                assert_eq!(track.as_deref(), Some("origin/main"));
+            }
+            _ => panic!("expected add command"),
+        }
+    }
+
+    #[test]
+    fn add_command_normalizes_track_input() {
+        let cli = Cli::try_parse_from([
+            "grove",
+            "add",
+            "feature/new-worktree",
+            "--track",
+            "origin/main/",
+        ])
+        .unwrap();
+        match cli.command {
+            Some(Commands::Add { track, .. }) => {
                 assert_eq!(track.as_deref(), Some("origin/main"));
             }
             _ => panic!("expected add command"),

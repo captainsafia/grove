@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::git::{
-    add_worktree, branch_exists, discover_repo, project_root, tracked_branch_name, RepoContext,
+    add_worktree, branch_exists, discover_repo, normalize_tracking_reference_input, project_root,
+    tracked_branch_name, RepoContext,
 };
 use crate::utils::{
     default_worktree_name_seed, generate_default_worktree_name, read_repo_config,
@@ -36,8 +37,8 @@ pub fn run(name: Option<&str>, track: Option<&str>) {
     let repo_config = match read_repo_config(project_root) {
         Ok(config) => config,
         Err(e) => {
-            eprintln!("{} {}", "Warning:".yellow(), e);
-            RepoConfig::default()
+            eprintln!("{} {}", "Error:".red(), e);
+            std::process::exit(1);
         }
     };
     let worktree = match resolve_worktree_spec(name, &repo, project_root, &repo_config) {
@@ -215,12 +216,17 @@ fn apply_branch_prefix(
 
 fn resolve_target_branch(name: &str, track: Option<&str>) -> Result<String, String> {
     match track {
-        Some(track_ref) => tracked_branch_name(track_ref).ok_or_else(|| {
-            format!(
-                "Invalid tracking branch '{}'. Use '<remote>/<branch>' or 'refs/remotes/<remote>/<branch>'.",
-                track_ref
-            )
-        }).map(str::to_string),
+        Some(track_ref) => {
+            let normalized = normalize_tracking_reference_input(track_ref)?;
+            tracked_branch_name(&normalized)
+                .ok_or_else(|| {
+                    format!(
+                        "Invalid tracking branch '{}'. Use '<remote>/<branch>' or 'refs/remotes/<remote>/<branch>'.",
+                        track_ref
+                    )
+                })
+                .map(str::to_string)
+        }
         None => Ok(name.to_string()),
     }
 }
@@ -538,8 +544,20 @@ mod tests {
     }
 
     #[test]
+    fn resolve_target_branch_trims_tracking_ref_trailing_slash() {
+        let result = resolve_target_branch("foo", Some("origin/feature/new-ui/")).unwrap();
+        assert_eq!(result, "feature/new-ui");
+    }
+
+    #[test]
     fn resolve_target_branch_rejects_non_remote_ref() {
         let result = resolve_target_branch("foo", Some("refs/heads/feature/new-ui"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_target_branch_rejects_malformed_tracking_ref() {
+        let result = resolve_target_branch("foo", Some("origin/feature//new-ui"));
         assert!(result.is_err());
     }
 
