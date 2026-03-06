@@ -16,9 +16,8 @@ pub fn run(name: Option<&str>, path_only: bool) {
         && !atty::is(atty::Stream::Stdin)
     {
         eprintln!(
-            "{} {}",
-            "Error:".red(),
-            "Interactive selection requires a TTY. Provide a branch name when using --path-only."
+            "{} Interactive selection requires a TTY. Provide a branch name when using --path-only.",
+            "Error:".red()
         );
         std::process::exit(1);
     }

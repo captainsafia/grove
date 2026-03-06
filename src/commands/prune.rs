@@ -105,13 +105,13 @@ pub fn run(dry_run: bool, force: bool, base: Option<&str>, older_than: Option<&s
         return;
     }
 
-    if older_than.is_some() {
+    if let Some(duration) = older_than {
         println!(
             "{}",
             format!(
                 "Found {} worktree(s) older than {}:",
                 candidates.len(),
-                older_than.unwrap()
+                duration
             )
             .green()
         );

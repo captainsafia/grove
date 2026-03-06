@@ -160,7 +160,12 @@ pub fn add_worktree(
     create_branch: bool,
     track: Option<&str>,
 ) -> Result<(), String> {
-    if let Some(track_branch) = track {
+    let normalized_track = match track {
+        Some(track_branch) => Some(normalize_tracking_reference_input(track_branch)?),
+        None => None,
+    };
+
+    if let Some(track_branch) = normalized_track.as_deref() {
         ensure_tracking_reference(context, track_branch)?;
     }
 
@@ -169,11 +174,11 @@ pub fn add_worktree(
         normalized_worktree_path.as_str(),
         branch_name,
         create_branch,
-        track,
+        normalized_track.as_deref(),
     );
 
     git_raw(context, &args).map_err(|e| format!("Failed to add worktree: {}", e))?;
-    if let Some(track_branch) = track {
+    if let Some(track_branch) = normalized_track.as_deref() {
         set_branch_upstream(context, branch_name, track_branch)?;
     }
     Ok(())
@@ -240,6 +245,18 @@ fn reference_exists(context: &RepoContext, reference: &str) -> bool {
     git_raw(context, &["rev-parse", "--verify", reference]).is_ok()
 }
 
+pub fn normalize_tracking_reference_input(reference: &str) -> Result<String, String> {
+    let normalized = trim_trailing_branch_slashes(reference);
+    let (remote, branch) = parse_remote_tracking_reference(normalized)
+        .ok_or_else(|| invalid_tracking_reference(reference))?;
+
+    if !is_valid_ref_component(remote) || !is_valid_ref_path(branch) {
+        return Err(invalid_tracking_reference(reference));
+    }
+
+    Ok(format!("{}/{}", remote, branch))
+}
+
 fn parse_remote_tracking_reference(reference: &str) -> Option<(&str, &str)> {
     let normalized = if let Some(rest) = reference.strip_prefix("refs/remotes/") {
         rest
@@ -259,6 +276,34 @@ fn parse_remote_tracking_reference(reference: &str) -> Option<(&str, &str)> {
 
 pub fn tracked_branch_name(reference: &str) -> Option<&str> {
     parse_remote_tracking_reference(reference).map(|(_, branch)| branch)
+}
+
+fn invalid_tracking_reference(reference: &str) -> String {
+    format!(
+        "Invalid tracking branch '{}'. Use '<remote>/<branch>' or 'refs/remotes/<remote>/<branch>'.",
+        reference
+    )
+}
+
+fn is_valid_ref_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.contains("@{")
+        && !path.ends_with('.')
+        && path.split('/').all(is_valid_ref_component)
+}
+
+fn is_valid_ref_component(component: &str) -> bool {
+    !component.is_empty()
+        && component != "."
+        && component != ".."
+        && !component.starts_with('.')
+        && !component.ends_with(".lock")
+        && !component.contains("..")
+        && !component.chars().any(contains_invalid_ref_char)
+}
+
+fn contains_invalid_ref_char(ch: char) -> bool {
+    ch.is_ascii_control() || matches!(ch, ' ' | '~' | '^' | ':' | '?' | '*' | '[' | '\\')
 }
 
 fn set_branch_upstream(
@@ -407,22 +452,22 @@ fn parse_worktree_lines(output: &str) -> Vec<PartialWorktree> {
     };
 
     for line in output.trim().lines() {
-        if line.starts_with("worktree ") {
+        if let Some(path) = line.strip_prefix("worktree ") {
             if current.path.is_some() && !current.is_bare {
                 worktrees.push(current);
             }
             current = PartialWorktree {
-                path: Some(line[9..].to_string()),
+                path: Some(path.to_string()),
                 head: None,
                 branch: None,
                 is_locked: false,
                 is_prunable: false,
                 is_bare: false,
             };
-        } else if line.starts_with("HEAD ") {
-            current.head = Some(line[5..].to_string());
-        } else if line.starts_with("branch ") {
-            current.branch = Some(line[7..].replace("refs/heads/", ""));
+        } else if let Some(head) = line.strip_prefix("HEAD ") {
+            current.head = Some(head.to_string());
+        } else if let Some(branch) = line.strip_prefix("branch ") {
+            current.branch = Some(branch.replace("refs/heads/", ""));
         } else if line == "detached" {
             current.branch = Some(DETACHED_HEAD.to_string());
         } else if line == "locked" {
@@ -718,6 +763,32 @@ mod tests {
             None
         );
         assert_eq!(parse_remote_tracking_reference("origin"), None);
+    }
+
+    #[test]
+    fn normalize_tracking_reference_input_trims_trailing_slash() {
+        assert_eq!(
+            normalize_tracking_reference_input("origin/feature/test/").unwrap(),
+            "origin/feature/test"
+        );
+    }
+
+    #[test]
+    fn normalize_tracking_reference_input_normalizes_full_ref() {
+        assert_eq!(
+            normalize_tracking_reference_input("refs/remotes/origin/feature/test/").unwrap(),
+            "origin/feature/test"
+        );
+    }
+
+    #[test]
+    fn normalize_tracking_reference_input_rejects_empty_branch() {
+        assert!(normalize_tracking_reference_input("origin/").is_err());
+    }
+
+    #[test]
+    fn normalize_tracking_reference_input_rejects_empty_path_segment() {
+        assert!(normalize_tracking_reference_input("origin/feature//test").is_err());
     }
 
     #[test]
