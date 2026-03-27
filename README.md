@@ -122,21 +122,27 @@ When `grove add` creates a worktree, it runs each bootstrap command in order ins
 - Use executable + args only (no shell syntax like pipes, `&&`, or redirects).
 - If one command fails, Grove continues running the remaining commands and reports a partial bootstrap state.
 
-### Remove a worktree
+### Remove worktrees
 
-Remove a worktree:
+Remove a single worktree:
 
 ```bash
 grove remove feature/new-feature
 ```
 
-Force removal even with uncommitted changes:
+Remove multiple worktrees at once:
 
 ```bash
-grove remove feature/new-feature --force
+grove remove feature/new-feature bugfix/login-flake
 ```
 
-Skip confirmation prompt:
+Force removal even with uncommitted changes. When `--force` removes a dirty worktree, Grove skips the confirmation prompt and logs a warning after removal:
+
+```bash
+grove remove feature/new-feature bugfix/login-flake --force
+```
+
+Skip the confirmation prompt for clean worktrees:
 
 ```bash
 grove remove feature/new-feature --yes
@@ -317,7 +323,7 @@ grove self-update --pr 42
 - `grove init <git-url>` - Create a new worktree setup
 - `grove add [name] [options]` - Create a new worktree
 - `grove go <name>` - Navigate to a worktree
-- `grove remove <name> [options]` - Remove a worktree
+- `grove remove [names]... [options]` - Remove one or more worktrees
 - `grove list [options]` - List all worktrees
 - `grove sync [options]` - Sync the bare clone with origin
 - `grove prune [options]` - Remove worktrees for merged branches

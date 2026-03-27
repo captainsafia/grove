@@ -139,8 +139,8 @@ enum Commands {
     /// Remove a worktree
     #[command(alias = "rm")]
     Remove {
-        /// Branch name or path of the worktree to remove (optional)
-        name: Option<String>,
+        /// Branch names or paths of the worktrees to remove (optional)
+        names: Vec<String>,
         /// Remove the worktree even if it has uncommitted changes
         #[arg(long)]
         force: bool,
@@ -223,8 +223,8 @@ fn main() {
         }) => {
             commands::prune::run(dry_run, force, base.as_deref(), older_than.as_deref());
         }
-        Some(Commands::Remove { name, force, yes }) => {
-            commands::remove::run(name.as_deref(), force, yes);
+        Some(Commands::Remove { names, force, yes }) => {
+            commands::remove::run(&names, force, yes);
         }
         Some(Commands::SelfUpdate { version, pr }) => {
             commands::self_update::run(version.as_deref(), pr);

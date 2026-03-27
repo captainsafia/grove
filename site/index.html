@@ -863,11 +863,11 @@ grove prune --older-than P30D</code></pre>
 
                 <div class="command-group">
                     <h3>Remove a worktree</h3>
-                    <p>Remove a specific worktree (alias: <code>grove rm</code>):</p>
-                    <pre><code>grove remove feature-branch</code></pre>
-                    <p>Force removal even with uncommitted changes:</p>
+                    <p>Remove one or more worktrees (alias: <code>grove rm</code>):</p>
+                    <pre><code>grove remove feature-branch bugfix-branch</code></pre>
+                    <p>Force removal even with uncommitted changes without prompting:</p>
                     <pre><code>grove remove feature-branch --force</code></pre>
-                    <p>Note: Dirty worktrees require <code>--force</code> to remove.</p>
+                    <p>Use <code>--yes</code> to skip the confirmation prompt for clean worktrees.</p>
                 </div>
 
                 <div class="command-group">
@@ -919,8 +919,8 @@ grove prune --older-than P30D</code></pre>
                             <td>Remove worktrees for merged branches</td>
                         </tr>
                         <tr>
-                            <td>grove remove (rm) &lt;name&gt;</td>
-                            <td>Remove a specific worktree</td>
+                            <td>grove remove (rm) [name...]</td>
+                            <td>Remove one or more worktrees</td>
                         </tr>
                         <tr>
                             <td>grove self-update [version]</td>
