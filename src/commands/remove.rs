@@ -120,8 +120,8 @@ fn resolve_worktrees_to_remove(
             continue;
         }
 
-        let worktree = find_worktree_by_identifier(worktrees, trimmed_identifier)
-            .ok_or_else(|| {
+        let worktree =
+            find_worktree_by_identifier(worktrees, trimmed_identifier).ok_or_else(|| {
                 format!(
                     "Worktree '{}' not found. Use 'grove list' to see available worktrees.",
                     trimmed_identifier
