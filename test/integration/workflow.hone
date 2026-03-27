@@ -128,12 +128,13 @@ RUN make-dirty: echo "uncommitted changes" > /tmp/grove-dirty-test/grove/dirty-b
 # Try to remove dirty worktree without --force - should fail
 RUN remove-dirty: cd /tmp/grove-dirty-test/grove/grove.git && grove remove dirty-branch --yes
 ASSERT remove-dirty.exit_code != 0
-ASSERT remove-dirty.stdout contains "uncommitted changes"
+ASSERT remove-dirty.stderr contains "uncommitted changes"
 
 # Remove with --force should succeed
 RUN remove-force: cd /tmp/grove-dirty-test/grove/grove.git && grove remove dirty-branch --force --yes
 ASSERT remove-force.exit_code == 0
 ASSERT remove-force.stdout contains "Removed worktree"
+ASSERT remove-force.stderr contains "Removed dirty worktree"
 
 # Cleanup
 RUN cleanup: rm -rf /tmp/grove-dirty-test
