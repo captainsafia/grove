@@ -1,5 +1,36 @@
 # Changelog
 
+<a name="v2.1.0"></a>
+## [v2.1.0] - 2026-03-28
+
+### Features
+- Support removing multiple worktrees at once (#78)
+- Add configurable branch name prefix (#75)
+- Provide default generated names for the add command (#72)
+
+### Bug Fixes
+- Harden add command tracking and config validation (#77)
+- Normalize Windows worktree paths for Git (#67)
+- Enforce alphanumeric branch prefix values (#76)
+- Keep implicit worktree directories unprefixed when using branch prefix (#75)
+- Handle `--track` flag correctly in the add command (#70)
+- Trim trailing slashes from branch parameters (#65)
+
+### Refactors
+- Move default name helpers to utils (#72)
+
+### Documentation
+- Require conventional commit PR titles (#67)
+- Update commit message format section in AGENTS.md (#69)
+- Add changelog for v2.0.0 (#62)
+
+### Tests
+- Align remove workflow test expectations (#78)
+- Remove low-value utils slash tests (#65)
+
+### Chores
+- Format remove command code (#78)
+
 <a name="v2.0.0"></a>
 ## [v2.0.0] - 2026-02-22
 
