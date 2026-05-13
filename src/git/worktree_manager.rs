@@ -37,10 +37,72 @@ pub fn project_root(context: &RepoContext) -> &Path {
     &context.project_root
 }
 
+/// Where a `git` invocation targets, scoping which repository it operates on.
+///
+/// Every `Command::new("git")` in this crate must go through
+/// [`build_git_command`] with one of these targets, so that the right scoping
+/// mechanism is applied uniformly and the bare-repo identification rules
+/// (see [`build_git_command`]) cannot be re-introduced incorrectly at a
+/// future callsite.
+enum GitTarget<'a> {
+    /// Operates on an existing bare repository. The path is identified via
+    /// `GIT_DIR` so the command works under `safe.bareRepository=explicit`,
+    /// and is normalized to strip Windows `\\?\` extended-length prefixes
+    /// (which git rejects in path arguments).
+    BareRepo(&'a Path),
+    /// Operates inside a working tree. The path is set as the command's
+    /// working directory; git's own discovery finds the repository from
+    /// there.
+    WorkTree(&'a Path),
+    /// Operates without a pre-existing repository target (e.g. `git clone`,
+    /// `git --version`). No scoping is applied.
+    Unbound,
+}
+
+/// Build a `git` command for a given target.
+///
+/// This is the single funnel for every `git` invocation in the crate. Routing
+/// all invocations through one function gives us:
+///
+/// - A uniform answer to "how do I scope this command to the right repo?"
+///   for bare repos (`GIT_DIR` + Windows path normalization) vs. worktrees
+///   (`current_dir`) vs. unbound operations (clone, version, etc.).
+/// - A single place to test the scoping invariants without spinning up real
+///   repositories on disk.
+/// - Visible centralization: a future PR that adds a new direct
+///   `Command::new("git")` stands out in review against the established
+///   pattern of going through this helper.
+///
+/// Why `GIT_DIR` for bare repos: `safe.bareRepository=explicit` (set by agent
+/// shells like GitHub Copilot CLI and by hardened environments) disables
+/// git's CWD-based bare-repo discovery and requires explicit identification
+/// via `GIT_DIR` or `--git-dir`. See
+/// <https://git-scm.com/docs/git-config#Documentation/git-config.txt-safebareRepository>.
+///
+/// Why the `\\?\` strip for bare repos: `std::fs::canonicalize` on Windows
+/// always returns paths prefixed with `\\?\` (the extended-length
+/// representation). Git accepts such paths as a process working directory
+/// because Win32 round-trips them transparently, but rejects them in
+/// `GIT_DIR` / `--git-dir` because git's portable path parser does not
+/// recognize the prefix. See <https://github.com/rust-lang/rust/issues/42869>.
+fn build_git_command(target: GitTarget<'_>, args: &[&str]) -> Command {
+    let mut cmd = Command::new("git");
+    match target {
+        GitTarget::BareRepo(path) => {
+            let normalized = normalize_path_for_git(&path.to_string_lossy());
+            cmd.env("GIT_DIR", normalized);
+        }
+        GitTarget::WorkTree(path) => {
+            cmd.current_dir(path);
+        }
+        GitTarget::Unbound => {}
+    }
+    cmd.args(args);
+    cmd
+}
+
 fn git_raw(context: &RepoContext, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(&context.repo_path)
+    let output = build_git_command(GitTarget::BareRepo(&context.repo_path), args)
         .output()
         .map_err(|e| format!("Failed to execute git: {}", e))?;
 
@@ -124,10 +186,12 @@ fn is_squash_merged(
 }
 
 pub fn clone_bare_repository(git_url: &str, target_dir: &str) -> Result<(), String> {
-    let output = Command::new("git")
-        .args(["clone", "--bare", git_url, target_dir])
-        .output()
-        .map_err(|e| format!("Failed to clone repository: {}", e))?;
+    let output = build_git_command(
+        GitTarget::Unbound,
+        &["clone", "--bare", git_url, target_dir],
+    )
+    .output()
+    .map_err(|e| format!("Failed to clone repository: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -135,15 +199,16 @@ pub fn clone_bare_repository(git_url: &str, target_dir: &str) -> Result<(), Stri
     }
 
     // Configure fetch refspec
-    let output = Command::new("git")
-        .args([
+    let output = build_git_command(
+        GitTarget::BareRepo(Path::new(target_dir)),
+        &[
             "config",
             "remote.origin.fetch",
             "+refs/heads/*:refs/remotes/origin/*",
-        ])
-        .current_dir(target_dir)
-        .output()
-        .map_err(|e| format!("Failed to configure repository: {}", e))?;
+        ],
+    )
+    .output()
+    .map_err(|e| format!("Failed to configure repository: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -494,12 +559,13 @@ fn complete_worktree_info(partial: PartialWorktree) -> Worktree {
     let is_main = MAIN_BRANCHES.contains(&branch.as_str());
 
     // Check if worktree is dirty
-    let is_dirty = Command::new("git")
-        .args(["status", "--porcelain"])
-        .current_dir(&path)
-        .output()
-        .map(|output| !output.stdout.is_empty())
-        .unwrap_or(false);
+    let is_dirty = build_git_command(
+        GitTarget::WorkTree(Path::new(&path)),
+        &["status", "--porcelain"],
+    )
+    .output()
+    .map(|output| !output.stdout.is_empty())
+    .unwrap_or(false);
 
     // Try to get creation time from filesystem with Unix fallbacks.
     let created_at = fs::metadata(&path)
@@ -567,6 +633,7 @@ fn normalize_path_for_git(path: &str) -> String {
 mod tests {
     use super::*;
     use chrono::DateTime;
+    use std::ffi::OsStr;
 
     fn make_worktree(path: &str, branch: &str) -> Worktree {
         Worktree {
@@ -812,6 +879,152 @@ mod tests {
         assert_eq!(
             normalize_tracking_reference("origin/feature/test"),
             "origin/feature/test"
+        );
+    }
+
+    // --- build_git_command tests ---
+    //
+    // These tests pin the invariants of the single funnel that all `git`
+    // invocations in this crate must go through. Routing every Command::new("git")
+    // through build_git_command makes the scoping policy uniform across
+    // bare-repo, worktree, and unbound invocations, and means a future PR
+    // adding a new direct Command::new("git") stands out against the
+    // established pattern in code review.
+    //
+    // Bug 1 motivation: `safe.bareRepository=explicit` (set by agent shells
+    // such as GitHub Copilot CLI 1.0+ and by hardened corporate environments)
+    // disables git's CWD-based bare-repo discovery and requires explicit
+    // identification via GIT_DIR. See
+    // https://git-scm.com/docs/git-config#Documentation/git-config.txt-safebareRepository
+    //
+    // Bug 2 motivation: `std::fs::canonicalize` on Windows returns paths
+    // prefixed with `\\?\`. Git accepts those as a process working directory
+    // but rejects them when supplied via GIT_DIR or --git-dir. See
+    // https://github.com/rust-lang/rust/issues/42869
+
+    #[test]
+    fn build_git_command_bare_repo_sets_git_dir_env_var() {
+        let repo_path = PathBuf::from("/tmp/grove-test/repo.git");
+        let cmd = build_git_command(GitTarget::BareRepo(&repo_path), &["worktree", "list"]);
+
+        let git_dir = cmd
+            .get_envs()
+            .find(|(key, _)| *key == OsStr::new("GIT_DIR"))
+            .map(|(_, value)| value);
+
+        assert!(
+            git_dir.is_some(),
+            "BareRepo target must set GIT_DIR so git operates explicitly on the \
+             bare repository, satisfying safe.bareRepository=explicit"
+        );
+        assert_eq!(
+            git_dir.unwrap(),
+            Some(repo_path.as_os_str()),
+            "GIT_DIR must point at the bare repository path"
+        );
+    }
+
+    #[test]
+    fn build_git_command_bare_repo_does_not_set_current_dir() {
+        let repo_path = PathBuf::from("/tmp/grove-test/repo.git");
+        let cmd = build_git_command(GitTarget::BareRepo(&repo_path), &["worktree", "list"]);
+
+        // Re-introducing current_dir on the bare repo path would re-enable the
+        // safe.bareRepository=explicit failure mode that GIT_DIR is meant to
+        // avoid.
+        let working_dir = cmd.get_current_dir();
+        assert!(
+            working_dir.is_none(),
+            "BareRepo target must not set a working directory; rely on GIT_DIR. \
+             Got working_dir={:?}",
+            working_dir
+        );
+    }
+
+    #[test]
+    fn build_git_command_bare_repo_normalizes_windows_extended_prefix() {
+        // `std::fs::canonicalize` on Windows returns paths with the `\\?\`
+        // extended-length prefix. Git accepts these as a process working
+        // directory but rejects them in GIT_DIR / --git-dir. The helper must
+        // strip the prefix before handing the path to git.
+        let repo_path = PathBuf::from(r"\\?\D:\repo\bare.git");
+        let cmd = build_git_command(GitTarget::BareRepo(&repo_path), &["worktree", "list"]);
+
+        let git_dir = cmd
+            .get_envs()
+            .find(|(key, _)| *key == OsStr::new("GIT_DIR"))
+            .and_then(|(_, value)| value);
+
+        assert_eq!(
+            git_dir,
+            Some(OsStr::new(r"D:\repo\bare.git")),
+            "GIT_DIR must have the Windows extended-length prefix stripped"
+        );
+    }
+
+    #[test]
+    fn build_git_command_work_tree_sets_current_dir_and_no_git_dir() {
+        let worktree_path = PathBuf::from("/tmp/grove-test/feature-x");
+        let cmd = build_git_command(
+            GitTarget::WorkTree(&worktree_path),
+            &["status", "--porcelain"],
+        );
+
+        assert_eq!(
+            cmd.get_current_dir(),
+            Some(worktree_path.as_path()),
+            "WorkTree target must set current_dir to the worktree path so git's \
+             CWD-based discovery finds the repository"
+        );
+
+        let git_dir = cmd
+            .get_envs()
+            .find(|(key, _)| *key == OsStr::new("GIT_DIR"));
+        assert!(
+            git_dir.is_none(),
+            "WorkTree target must not set GIT_DIR; that would override git's \
+             CWD-based discovery and could point at the wrong repository"
+        );
+    }
+
+    #[test]
+    fn build_git_command_unbound_sets_neither_current_dir_nor_git_dir() {
+        // Unbound is for invocations that target no pre-existing
+        // repository, e.g. `git clone`. Either form of scoping would be wrong:
+        // GIT_DIR pointing at a not-yet-existing repo would fail, and
+        // current_dir would silently affect where the new repo lands.
+        let cmd = build_git_command(
+            GitTarget::Unbound,
+            &["clone", "--bare", "https://x/y.git", "y.git"],
+        );
+
+        assert!(
+            cmd.get_current_dir().is_none(),
+            "Unbound target must not set current_dir"
+        );
+
+        let git_dir = cmd
+            .get_envs()
+            .find(|(key, _)| *key == OsStr::new("GIT_DIR"));
+        assert!(git_dir.is_none(), "Unbound target must not set GIT_DIR");
+    }
+
+    #[test]
+    fn build_git_command_forwards_args_in_order() {
+        let repo_path = PathBuf::from("/tmp/grove-test/repo.git");
+        let cmd = build_git_command(
+            GitTarget::BareRepo(&repo_path),
+            &["worktree", "list", "--porcelain"],
+        );
+
+        let args: Vec<&OsStr> = cmd.get_args().collect();
+        assert_eq!(
+            args,
+            vec![
+                OsStr::new("worktree"),
+                OsStr::new("list"),
+                OsStr::new("--porcelain"),
+            ]
         );
     }
 }
