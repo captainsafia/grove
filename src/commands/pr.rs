@@ -101,6 +101,8 @@ pub fn run(pr_num: u64) {
         format!("Fetching PR branch: {}...", branch_name).dimmed()
     );
     let fetch = Command::new("git")
+        .arg("--git-dir")
+        .arg(".")
         .args([
             "fetch",
             "origin",

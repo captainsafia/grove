@@ -38,7 +38,14 @@ pub fn project_root(context: &RepoContext) -> &Path {
 }
 
 fn git_raw(context: &RepoContext, args: &[&str]) -> Result<String, String> {
+    // Name the bare repo explicitly (via --git-dir, resolved to the working
+    // directory set below) rather than relying on directory discovery. When
+    // safe.bareRepository is set to "explicit" (common on hardened/managed
+    // machines), git refuses to operate on a bare repo it discovered via the
+    // working directory, but still honors one named through --git-dir.
     let output = Command::new("git")
+        .arg("--git-dir")
+        .arg(".")
         .args(args)
         .current_dir(&context.repo_path)
         .output()
@@ -134,9 +141,13 @@ pub fn clone_bare_repository(git_url: &str, target_dir: &str) -> Result<(), Stri
         return Err(format!("Failed to clone repository: {}", stderr.trim()));
     }
 
-    // Configure fetch refspec
+    // Configure fetch refspec. Name the bare repo via --git-dir (resolved to
+    // the working directory) so this works under safe.bareRepository=explicit,
+    // where discovering the just-cloned bare repo would be rejected.
     let output = Command::new("git")
         .args([
+            "--git-dir",
+            ".",
             "config",
             "remote.origin.fetch",
             "+refs/heads/*:refs/remotes/origin/*",

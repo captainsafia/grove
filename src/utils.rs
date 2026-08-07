@@ -497,7 +497,12 @@ pub fn extract_bare_clone_from_gitdir(gitdir_path: &str) -> Result<String, Strin
 
 /// Check if a path is a bare git repository using git commands.
 fn is_bare_repository(repo_path: &Path) -> bool {
+    // Name the repo via --git-dir (resolved to the working directory) so this
+    // detection works under safe.bareRepository=explicit, where discovering a
+    // bare repo from the working directory is rejected.
     Command::new("git")
+        .arg("--git-dir")
+        .arg(".")
         .args(["config", "--get", "core.bare"])
         .current_dir(repo_path)
         .output()
