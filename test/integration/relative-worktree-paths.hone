@@ -1,0 +1,107 @@
+#! shell: /bin/bash
+#! timeout: 60s
+
+TEST "discover absolute and relative worktrees, nested directories, and cached repositories"
+
+# Each test owns its directory and Git configuration. Disable fixture hooks.
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n[safe]\nbareRepository = all\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed
+ASSERT seed.exit_code == 0
+RUN checkout: BARE="$ROOT/metadata" && CHECKOUT="$ROOT/checkouts/worktrees/topic" && git clone --bare "$ROOT/seed" "$BARE" && git --git-dir="$BARE" -c worktree.useRelativePaths=false worktree add -b topic "$CHECKOUT" main
+ASSERT checkout.exit_code == 0
+RUN absolute-link: grep -q '^gitdir: /' "$CHECKOUT/.git" && git -C "$CHECKOUT" status --porcelain
+ASSERT absolute-link.exit_code == 0
+ASSERT absolute-link.stdout == ""
+RUN absolute: cd "$CHECKOUT" && grove list --json
+ASSERT absolute.exit_code == 0
+ASSERT absolute.stdout contains "\"branch\": \"topic\""
+RUN absolute-nested: mkdir -p nested/deeper && cd nested/deeper && grove list --json
+ASSERT absolute-nested.exit_code == 0
+ASSERT absolute-nested.stdout contains "\"branch\": \"topic\""
+
+# Relative .git pointers are valid even on Git versions before useRelativePaths.
+# The checkout path deliberately contains "worktrees" and the bare path has no .git suffix.
+RUN relative-link: cd "$CHECKOUT" && printf 'gitdir: ../../../metadata/worktrees/topic\n' > "$CHECKOUT/.git" && grep -q '^gitdir: \.\./' "$CHECKOUT/.git" && git status --porcelain
+ASSERT relative-link.exit_code == 0
+ASSERT relative-link.stdout == ""
+RUN relative: grove list --json
+ASSERT relative.exit_code == 0
+ASSERT relative.stdout contains "\"branch\": \"topic\""
+RUN listed-path: grove list --json > "$ROOT/listed.json" && test "$(grep -c '\"branch\":' "$ROOT/listed.json")" -eq 1 && grep -Fq "\"path\": \"$CHECKOUT\"" "$ROOT/listed.json"
+ASSERT listed-path.exit_code == 0
+RUN nested: mkdir -p nested/deeper && cd nested/deeper && grove list --json
+ASSERT nested.exit_code == 0
+ASSERT nested.stdout contains "\"branch\": \"topic\""
+
+# The cache must work outside the checkout, where ordinary discovery cannot succeed.
+RUN harden: git config --file "$GIT_CONFIG_GLOBAL" safe.bareRepository explicit && cd "$ROOT"
+ASSERT harden.exit_code == 0
+RUN uncached: grove list --json
+ASSERT uncached.exit_code != 0
+ASSERT uncached.stderr contains "Not in a grove repository"
+RUN cached: GROVE_REPO="$BARE" grove list --json
+ASSERT cached.exit_code == 0
+ASSERT cached.stdout contains "\"branch\": \"topic\""
+RUN stale-cache: cd "$CHECKOUT" && GROVE_REPO="$ROOT/missing" grove list --json
+ASSERT stale-cache.exit_code == 0
+ASSERT stale-cache.stdout contains "\"branch\": \"topic\""
+RUN non-bare-cache: GROVE_REPO="$ROOT/seed/.git" grove list --json
+ASSERT non-bare-cache.exit_code == 0
+ASSERT non-bare-cache.stdout contains "\"branch\": \"topic\""
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0
+
+TEST "discover relative worktrees after moving the entire layout"
+
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n[safe]\nbareRepository = explicit\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed && mkdir "$ROOT/layout" && git clone --bare "$ROOT/seed" "$ROOT/layout/metadata"
+ASSERT seed.exit_code == 0
+RUN capability: git --git-dir="$ROOT/layout/metadata" worktree add -h > "$ROOT/worktree-help" 2>&1; test $? -eq 129 && if grep -q 'relative-paths' "$ROOT/worktree-help"; then NATIVE_RELATIVE=yes; else NATIVE_RELATIVE=no; fi
+ASSERT capability.exit_code == 0
+# Moving both links needs Git's native relative-worktree support (Git 2.48+).
+RUN before-move: if [ "$NATIVE_RELATIVE" = yes ]; then git --git-dir="$ROOT/layout/metadata" -c worktree.useRelativePaths=true worktree add -b topic "$ROOT/layout/checkouts/worktrees/topic" main && grep -q '^gitdir: \.\./' "$ROOT/layout/checkouts/worktrees/topic/.git" && cd "$ROOT/layout/checkouts/worktrees/topic" && grove list --json; else printf 'SKIP: Git lacks relative worktree creation\n'; fi
+ASSERT before-move.exit_code == 0
+ASSERT before-move.stdout matches /"branch": "topic"|SKIP: Git lacks relative worktree creation/
+RUN move: if [ "$NATIVE_RELATIVE" = yes ]; then cd "$ROOT" && mv layout moved && CHECKOUT="$ROOT/moved/checkouts/worktrees/topic" && cd "$CHECKOUT" && git status --porcelain && grove list --json; else printf 'SKIP: Git lacks relative worktree creation\n'; fi
+ASSERT move.exit_code == 0
+ASSERT move.stdout matches /"branch": "topic"|SKIP: Git lacks relative worktree creation/
+RUN moved-path: if [ "$NATIVE_RELATIVE" = yes ]; then grove list --json > "$ROOT/moved.json" && test "$(grep -c '\"branch\":' "$ROOT/moved.json")" -eq 1 && grep -Fq '"branch": "topic"' "$ROOT/moved.json" && grep -Fq "\"path\": \"$CHECKOUT\"" "$ROOT/moved.json"; else printf 'SKIP: Git lacks relative worktree creation\n'; fi
+ASSERT moved-path.exit_code == 0
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0
+
+TEST "reject regular repositories, their linked worktrees, and broken links"
+
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n[safe]\nbareRepository = explicit\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed
+ASSERT seed.exit_code == 0
+RUN regular: cd "$ROOT/seed" && grove list --json
+ASSERT regular.exit_code != 0
+ASSERT regular.stderr contains "not a grove-managed worktree setup"
+RUN checkout: git -c worktree.useRelativePaths=false worktree add -b topic "$ROOT/regular-linked" && git -C "$ROOT/regular-linked" status --porcelain
+ASSERT checkout.exit_code == 0
+RUN linked: cd "$ROOT/regular-linked" && grove list --json
+ASSERT linked.exit_code != 0
+ASSERT linked.stderr contains "Not in a grove repository"
+RUN relative-link: LINKED_GITDIR=$(git rev-parse --absolute-git-dir) && LINKED_RELATIVE=$(realpath --relative-to="$PWD" "$LINKED_GITDIR") && printf 'gitdir: %s\n' "$LINKED_RELATIVE" > .git && grep -q '^gitdir: \.\./' .git && git status --porcelain
+ASSERT relative-link.exit_code == 0
+ASSERT relative-link.stdout == ""
+RUN linked-relative: grove list --json
+ASSERT linked-relative.exit_code != 0
+ASSERT linked-relative.stderr contains "Not in a grove repository"
+RUN broken-link: mkdir "$ROOT/broken" && printf 'gitdir: ../missing/worktrees/topic\n' > "$ROOT/broken/.git"
+ASSERT broken-link.exit_code == 0
+RUN broken: cd "$ROOT/broken" && grove list --json
+ASSERT broken.exit_code == 1
+ASSERT broken.stderr contains "Not in a grove repository"
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0

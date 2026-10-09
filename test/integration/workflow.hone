@@ -241,3 +241,78 @@ ASSERT verify-worktree.exit_code == 0
 
 # Cleanup
 RUN cleanup: rm -rf /tmp/grove-bootstrap-partial
+
+TEST "grove init fetches origin refs and grove add sets upstream tracking"
+
+# Set up a local source repo to act as origin so the test is offline-safe
+RUN cleanup-pre: rm -rf /tmp/grove-tracking-test
+RUN setup-src: mkdir -p /tmp/grove-tracking-test && cd /tmp/grove-tracking-test && git init --bare source.git && cd source.git && git config user.email "test@example.com" && git config user.name "Test User"
+
+# Seed the source repo with a main branch (plus a feature branch)
+RUN seed-src: cd /tmp/grove-tracking-test && rm -rf seed && git clone source.git seed && cd seed && git config user.email "test@example.com" && git config user.name "Test User" && echo "# Test" > README.md && git add README.md && git commit -m "Initial commit" && git push origin HEAD:main && git checkout -b some-feature && echo "feature" > feature.txt && git add feature.txt && git commit -m "Add feature" && git push origin some-feature
+
+# Initialize grove against the local source repo
+RUN init: cd /tmp/grove-tracking-test && grove init file:///tmp/grove-tracking-test/source.git
+ASSERT init.exit_code == 0
+
+# After init, refs/remotes/origin/main and origin/HEAD must resolve in the bare clone
+RUN verify-origin-main: cd /tmp/grove-tracking-test/source/source.git && git rev-parse --verify refs/remotes/origin/main
+ASSERT verify-origin-main.exit_code == 0
+
+RUN verify-origin-head: cd /tmp/grove-tracking-test/source/source.git && git symbolic-ref refs/remotes/origin/HEAD
+ASSERT verify-origin-head.exit_code == 0
+ASSERT verify-origin-head.stdout contains "refs/remotes/origin/main"
+
+# grove add main should set upstream tracking to origin/main
+RUN add-main: cd /tmp/grove-tracking-test/source/source.git && grove add main
+ASSERT add-main.exit_code == 0
+
+RUN verify-upstream: cd /tmp/grove-tracking-test/source/main && git rev-parse --abbrev-ref --symbolic-full-name 'main@{u}'
+ASSERT verify-upstream.exit_code == 0
+ASSERT verify-upstream.stdout contains "origin/main"
+
+# Branch status should show tracking relationship
+RUN verify-status: cd /tmp/grove-tracking-test/source/main && git status -sb
+ASSERT verify-status.stdout contains "origin/main"
+
+# grove add some-feature (existing remote branch) should also auto-track
+RUN add-feature: cd /tmp/grove-tracking-test/source/source.git && grove add some-feature
+ASSERT add-feature.exit_code == 0
+
+RUN verify-feature-upstream: cd /tmp/grove-tracking-test/source/some-feature && git rev-parse --abbrev-ref --symbolic-full-name 'some-feature@{u}'
+ASSERT verify-feature-upstream.exit_code == 0
+ASSERT verify-feature-upstream.stdout contains "origin/some-feature"
+
+# A brand-new branch with no remote counterpart should NOT have an upstream
+RUN add-new: cd /tmp/grove-tracking-test/source/source.git && grove add brand-new-branch
+ASSERT add-new.exit_code == 0
+
+RUN verify-no-upstream: cd /tmp/grove-tracking-test/source/brand-new-branch && git rev-parse --abbrev-ref --symbolic-full-name 'brand-new-branch@{u}'
+ASSERT verify-no-upstream.exit_code != 0
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-tracking-test
+
+TEST "grove add respects branch.autoSetupMerge=false opt-out"
+
+# Set up a local source repo with main
+RUN cleanup-pre: rm -rf /tmp/grove-optout-test
+RUN setup-src: mkdir -p /tmp/grove-optout-test && cd /tmp/grove-optout-test && git init --bare source.git && cd source.git && git config user.email "test@example.com" && git config user.name "Test User"
+RUN seed-src: cd /tmp/grove-optout-test && rm -rf seed && git clone source.git seed && cd seed && git config user.email "test@example.com" && git config user.name "Test User" && echo "# Test" > README.md && git add README.md && git commit -m "Initial commit" && git push origin HEAD:main
+
+# Initialize grove and opt out of auto-tracking in the bare clone
+RUN init: cd /tmp/grove-optout-test && grove init file:///tmp/grove-optout-test/source.git
+ASSERT init.exit_code == 0
+
+RUN set-optout: cd /tmp/grove-optout-test/source/source.git && git config branch.autoSetupMerge false
+ASSERT set-optout.exit_code == 0
+
+# grove add main should NOT set upstream when the user opted out
+RUN add-main: cd /tmp/grove-optout-test/source/source.git && grove add main
+ASSERT add-main.exit_code == 0
+
+RUN verify-no-upstream: cd /tmp/grove-optout-test/source/main && git rev-parse --abbrev-ref --symbolic-full-name 'main@{u}'
+ASSERT verify-no-upstream.exit_code != 0
+
+# Cleanup
+RUN cleanup: rm -rf /tmp/grove-optout-test

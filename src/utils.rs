@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::git::worktree_manager::{bare_repository_from_worktree, is_bare_repository};
 
 // ============================================================================
 // Error Handling
@@ -464,47 +465,6 @@ impl std::fmt::Display for GroveDiscoveryError {
 
 impl std::error::Error for GroveDiscoveryError {}
 
-/// Parse a .git file (used by worktrees) to extract the gitdir path.
-pub fn parse_git_file(git_file_path: &Path) -> Result<String, String> {
-    let content = fs::read_to_string(git_file_path)
-        .map_err(|e| format!("Failed to read .git file: {}", e))?;
-    let re = Regex::new(r"^gitdir:\s*(.+)$").unwrap();
-    if let Some(caps) = re.captures(content.trim()) {
-        Ok(caps[1].to_string())
-    } else {
-        Err(format!(
-            "Invalid .git file format at {}",
-            git_file_path.display()
-        ))
-    }
-}
-
-/// Extract the bare clone path from a worktree gitdir path.
-pub fn extract_bare_clone_from_gitdir(gitdir_path: &str) -> Result<String, String> {
-    // Look for .git/worktrees/ pattern
-    let git_worktrees_pattern = ".git/worktrees/";
-    if let Some(idx) = gitdir_path.find(git_worktrees_pattern) {
-        return Ok(gitdir_path[..idx + 4].to_string()); // +4 for ".git"
-    }
-
-    // Fallback: try simple /worktrees/ pattern
-    if let Some(idx) = gitdir_path.find("/worktrees/") {
-        return Ok(gitdir_path[..idx].to_string());
-    }
-
-    Err(format!("Invalid worktree gitdir path: {}", gitdir_path))
-}
-
-/// Check if a path is a bare git repository using git commands.
-fn is_bare_repository(repo_path: &Path) -> bool {
-    Command::new("git")
-        .args(["config", "--get", "core.bare"])
-        .current_dir(repo_path)
-        .output()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "true")
-        .unwrap_or(false)
-}
-
 /// Check if a path looks like a bare git repository by examining its structure.
 fn is_bare_repo_by_structure(repo_path: &Path) -> bool {
     let head_path = repo_path.join("HEAD");
@@ -522,20 +482,20 @@ fn is_bare_repo_by_structure(repo_path: &Path) -> bool {
 }
 
 /// Check if a path contains a .git FILE (worktree) vs a .git DIRECTORY (regular repo).
-fn check_git_indicator(dir_path: &Path) -> (bool, bool, Option<PathBuf>) {
+fn check_git_indicator(dir_path: &Path) -> (bool, bool) {
     let git_path = dir_path.join(".git");
 
     if let Ok(metadata) = fs::metadata(&git_path) {
         if metadata.is_file() {
             // .git FILE = worktree
-            return (true, false, Some(git_path));
+            return (true, false);
         } else if metadata.is_dir() {
             // .git DIRECTORY = regular repo
-            return (false, true, Some(git_path));
+            return (false, true);
         }
     }
 
-    (false, false, None)
+    (false, false)
 }
 
 /// Discover the bare clone repository from the current working directory.
@@ -558,7 +518,7 @@ pub fn discover_bare_clone(start_path: Option<&Path>) -> Result<PathBuf, GroveDi
     };
 
     // 2. Check if current directory is a bare clone
-    if is_bare_repo_by_structure(&current_path) {
+    if is_bare_repo_by_structure(&current_path) && is_bare_repository(&current_path) {
         return Ok(current_path);
     }
 
@@ -570,7 +530,9 @@ pub fn discover_bare_clone(start_path: Option<&Path>) -> Result<PathBuf, GroveDi
                     if let Some(name) = entry.file_name().to_str() {
                         if name.ends_with(".git") {
                             let potential = entry.path();
-                            if is_bare_repo_by_structure(&potential) {
+                            if is_bare_repo_by_structure(&potential)
+                                && is_bare_repository(&potential)
+                            {
                                 return Ok(potential);
                             }
                         }
@@ -586,26 +548,11 @@ pub fn discover_bare_clone(start_path: Option<&Path>) -> Result<PathBuf, GroveDi
     let mut found_regular_repo = false;
 
     while search_path != root {
-        let (is_worktree, is_regular_repo, git_path) = check_git_indicator(&search_path);
+        let (is_worktree, is_regular_repo) = check_git_indicator(&search_path);
 
         if is_worktree {
-            if let Some(gp) = git_path {
-                if let Ok(gitdir_path) = parse_git_file(&gp) {
-                    let resolved_gitdir = if Path::new(&gitdir_path).is_absolute() {
-                        PathBuf::from(&gitdir_path)
-                    } else {
-                        search_path.join(&gitdir_path)
-                    };
-
-                    if let Ok(bare_clone_path) =
-                        extract_bare_clone_from_gitdir(&resolved_gitdir.to_string_lossy())
-                    {
-                        let bare_path = PathBuf::from(&bare_clone_path);
-                        if is_bare_repository(&bare_path) {
-                            return Ok(bare_path);
-                        }
-                    }
-                }
+            if let Some(bare_path) = bare_repository_from_worktree(&search_path) {
+                return Ok(bare_path);
             }
         } else if is_regular_repo && !found_regular_repo {
             found_regular_repo = true;
@@ -1135,57 +1082,6 @@ mod tests {
             format_path_with_tilde("/tmp/projects/grove"),
             "/tmp/projects/grove"
         );
-    }
-
-    // --- extractBareCloneFromGitdir tests ---
-
-    #[test]
-    fn extract_bare_clone_simple() {
-        assert_eq!(
-            extract_bare_clone_from_gitdir(
-                "/home/user/projects/myproject/myproject.git/worktrees/main"
-            )
-            .unwrap(),
-            "/home/user/projects/myproject/myproject.git"
-        );
-    }
-
-    #[test]
-    fn extract_bare_clone_nested_branch() {
-        assert_eq!(
-            extract_bare_clone_from_gitdir(
-                "/home/user/projects/myproject/myproject.git/worktrees/feature/my-feature"
-            )
-            .unwrap(),
-            "/home/user/projects/myproject/myproject.git"
-        );
-    }
-
-    #[test]
-    fn extract_bare_clone_deep_nesting() {
-        assert_eq!(
-            extract_bare_clone_from_gitdir("/a/b/c/repo.git/worktrees/feature/sub/deep").unwrap(),
-            "/a/b/c/repo.git"
-        );
-    }
-
-    #[test]
-    fn extract_bare_clone_branch_named_worktrees() {
-        assert_eq!(
-            extract_bare_clone_from_gitdir("/home/user/repo.git/worktrees/fix/worktrees/bug")
-                .unwrap(),
-            "/home/user/repo.git"
-        );
-    }
-
-    #[test]
-    fn extract_bare_clone_no_worktrees() {
-        assert!(extract_bare_clone_from_gitdir("/home/user/repo.git").is_err());
-    }
-
-    #[test]
-    fn extract_bare_clone_empty() {
-        assert!(extract_bare_clone_from_gitdir("").is_err());
     }
 
     // --- getProjectRoot tests ---
