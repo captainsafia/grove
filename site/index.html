@@ -477,6 +477,17 @@
             margin-bottom: 0.75rem;
         }
 
+        .command-group a {
+            color: var(--color-accent);
+            text-decoration: underline;
+        }
+
+        .command-group .warning-callout {
+            border-left: 0.25rem solid var(--color-amber);
+            background-color: var(--color-surface);
+            padding: 0.75rem 1rem;
+        }
+
         .command-group pre {
             background-color: var(--color-surface);
             border: 1px solid var(--color-border);
@@ -791,6 +802,8 @@ $ grove go main`;
                     <h3>Initialize a new worktree setup</h3>
                     <p>Create a bare clone optimized for worktrees:</p>
                     <pre><code>grove init https://github.com/user/repo.git</code></pre>
+                    <p class="warning-callout"><strong>Warning:</strong> <code>grove init</code> requires Git 2.20 or newer.</p>
+                    <p>This command enables <a href="https://git-scm.com/docs/git-worktree#_configuration_file">per-worktree Git configuration</a>.</p>
                 </div>
 
                 <div class="command-group">

@@ -59,11 +59,16 @@ Create a new directory structure optimized for git worktree workflows:
 grove init https://github.com/user/repo.git
 ```
 
+> [!WARNING]
+> `grove init` requires Git 2.20 or newer.
+
 This command will:
 
 - Create a directory named after the repository (e.g., `repo/`)
 - Clone the repository as a bare clone into `repo/repo.git/`
 - Configure the remote fetch to support all branches
+- Fetch from origin so remote-tracking refs (`origin/<branch>`) and `origin/HEAD` are populated
+- Enable [per-worktree Git configuration](https://git-scm.com/docs/git-worktree#_configuration_file)
 - Provide instructions for creating worktrees
 
 After initialization, you can create worktrees:
@@ -81,6 +86,11 @@ Create a new worktree for a branch:
 ```bash
 grove add feature/new-feature
 ```
+
+When the branch has a matching `origin/<branch>` (for example, `main`), Grove
+automatically configures upstream tracking so `git push`, `git pull`, and
+`git status` work without `-u` on first push. To opt out, set
+`branch.autoSetupMerge=false` in your git config.
 
 Create a new worktree with an auto-generated adjective-noun name:
 

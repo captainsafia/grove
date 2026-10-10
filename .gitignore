@@ -3,7 +3,7 @@
 
 # Single-file executables
 /grove
-grove-*
+/grove-*
 
 # Environment
 .env

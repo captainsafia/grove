@@ -1,0 +1,174 @@
+#! shell: /bin/bash
+#! timeout: 60s
+
+TEST "grove init enables isolated worktree configuration and preserves branch tracking"
+
+# Each test owns its directory and Git configuration, including checkout hooks.
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n[safe]\nbareRepository = all\n[worktree]\nuseRelativePaths = false\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed && git -C "$ROOT/seed" branch remote-topic && mkdir "$ROOT/project"
+ASSERT seed.exit_code == 0
+RUN local-url: git config --file "$GIT_CONFIG_GLOBAL" "url.$ROOT/seed.insteadOf" https://grove.example.invalid/seed.git
+ASSERT local-url.exit_code == 0
+
+# Verify the owned hook runs in a control checkout before disabling fixture hooks.
+RUN hook-control: mkdir "$ROOT/hooks" && printf '#!/bin/sh\nprintf "hook ran\\n" >> "%s"\n' "$ROOT/hook-ran" > "$ROOT/hooks/post-checkout" && chmod +x "$ROOT/hooks/post-checkout" && git config --file "$GIT_CONFIG_GLOBAL" core.hooksPath "$ROOT/hooks" && git clone "$ROOT/seed" "$ROOT/control" && test -f "$ROOT/hook-ran"
+ASSERT hook-control.exit_code == 0
+RUN disable-hooks: git config --file "$GIT_CONFIG_GLOBAL" core.hooksPath '' && rm "$ROOT/hook-ran"
+ASSERT disable-hooks.exit_code == 0
+RUN init: cd "$ROOT/project" && grove init https://grove.example.invalid/seed.git
+ASSERT init.exit_code == 0
+ASSERT init.stdout contains "Initialized worktree setup"
+RUN bare: BARE="$ROOT/project/seed/seed.git" && git --git-dir="$BARE" rev-parse --is-bare-repository
+ASSERT bare.exit_code == 0
+ASSERT bare.stdout == "true"
+RUN extension: git --git-dir="$BARE" config --local --get extensions.worktreeConfig
+ASSERT extension.exit_code == 0
+ASSERT extension.stdout == "true"
+RUN format: git --git-dir="$BARE" config --local --get core.repositoryFormatVersion
+ASSERT format.exit_code == 0
+ASSERT format.stdout == "1"
+RUN shared-bare: git --git-dir="$BARE" config --local --get core.bare
+ASSERT shared-bare.exit_code == 1
+RUN worktree-bare: git --git-dir="$BARE" config --worktree --get core.bare
+ASSERT worktree-bare.exit_code == 0
+ASSERT worktree-bare.stdout == "true"
+RUN remote-refs: test "$(git --git-dir="$BARE" rev-parse origin/main)" = "$(git --git-dir="$BARE" rev-parse main)" && test "$(git --git-dir="$BARE" symbolic-ref refs/remotes/origin/HEAD)" = refs/remotes/origin/main
+ASSERT remote-refs.exit_code == 0
+RUN fetch-refspec: git --git-dir="$BARE" config --get remote.origin.fetch
+ASSERT fetch-refspec.exit_code == 0
+ASSERT fetch-refspec.stdout == "+refs/heads/*:refs/remotes/origin/*"
+RUN add: cd "$BARE" && grove add main && grove add topic-a && grove add topic-b
+ASSERT add.exit_code == 0
+RUN checkout-a: A="$ROOT/project/seed/topic-a" && B="$ROOT/project/seed/topic-b" && git -C "$A" rev-parse --is-bare-repository
+ASSERT checkout-a.exit_code == 0
+ASSERT checkout-a.stdout == "false"
+RUN checkout-b: git -C "$B" rev-parse --is-bare-repository
+ASSERT checkout-b.exit_code == 0
+ASSERT checkout-b.stdout == "false"
+RUN clean: git -C "$A" status --porcelain && git -C "$B" status --porcelain && test ! -e "$ROOT/hook-ran"
+ASSERT clean.exit_code == 0
+ASSERT clean.stdout == ""
+RUN discover-a: cd "$A" && grove list --json
+ASSERT discover-a.exit_code == 0
+ASSERT discover-a.stdout contains "\"branch\": \"topic-b\""
+RUN discover-b: cd "$B" && grove list --json
+ASSERT discover-b.exit_code == 0
+ASSERT discover-b.stdout contains "\"branch\": \"topic-a\""
+RUN hooks-before: git -C "$B" config --get core.hooksPath > "$ROOT/b-hooks-before"
+ASSERT hooks-before.exit_code == 0
+RUN hooks-a: git -C "$A" config --worktree core.hooksPath "$ROOT/a-hooks" && git -C "$B" config --get core.hooksPath > "$ROOT/b-hooks-after" && cmp "$ROOT/b-hooks-before" "$ROOT/b-hooks-after"
+ASSERT hooks-a.exit_code == 0
+RUN hooks-update: git -C "$B" config --worktree core.hooksPath "$ROOT/b-hooks" && git -C "$A" config --worktree core.hooksPath "$ROOT/a-hooks-updated"
+ASSERT hooks-update.exit_code == 0
+RUN isolated-a: test "$(git -C "$A" config --get core.hooksPath)" = "$ROOT/a-hooks-updated"
+ASSERT isolated-a.exit_code == 0
+RUN isolated-b: test "$(git -C "$B" config --get core.hooksPath)" = "$ROOT/b-hooks"
+ASSERT isolated-b.exit_code == 0
+RUN tracked: cd "$BARE" && grove add tracked --track origin/remote-topic
+ASSERT tracked.exit_code == 0
+RUN tracked-config: test "$(git --git-dir="$BARE" config --get branch.remote-topic.remote)" = origin && test "$(git --git-dir="$BARE" config --get branch.remote-topic.merge)" = refs/heads/remote-topic
+ASSERT tracked-config.exit_code == 0
+
+# Format 1 must reject unknown extensions rather than silently ignoring them.
+RUN unknown-extension: git --git-dir="$BARE" config --local extensions.groveUnknownTestExtension true
+ASSERT unknown-extension.exit_code == 0
+RUN unsupported-client: git --git-dir="$BARE" rev-parse --is-bare-repository
+ASSERT unsupported-client.exit_code != 0
+ASSERT unsupported-client.stderr contains "unknown repository extension"
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0
+
+TEST "initialization preserves shared core.bare=false and relocates core.worktree"
+
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n[safe]\nbareRepository = explicit\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed && mkdir -p "$ROOT/project" "$ROOT/bin" "$ROOT/main checkout"
+ASSERT seed.exit_code == 0
+RUN local-url: git config --file "$GIT_CONFIG_GLOBAL" "url.$ROOT/seed.insteadOf" https://grove.example.invalid/seed.git
+ASSERT local-url.exit_code == 0
+
+# Bare clones normally write core.bare=true. Inject the alternate configuration
+# after the real clone, before Grove initializes it; all other Git calls delegate.
+RUN alternate-config: export REAL_GIT=$(command -v git) CORE_WORKTREE="$ROOT/main checkout" && printf '%s\n' '#!/bin/sh' 'if [ "$1" = clone ] && [ "$2" = --bare ]; then' '  "$REAL_GIT" "$@" || exit' '  "$REAL_GIT" --git-dir="$4" config --local core.bare false || exit' '  exec "$REAL_GIT" --git-dir="$4" config --local core.worktree "$CORE_WORKTREE"' 'fi' 'exec "$REAL_GIT" "$@"' > "$ROOT/bin/git" && chmod +x "$ROOT/bin/git" && export PATH="$ROOT/bin:$PATH"
+ASSERT alternate-config.exit_code == 0
+RUN init: cd "$ROOT/project" && grove init https://grove.example.invalid/seed.git
+ASSERT init.exit_code == 0
+RUN shared-bare: BARE="$ROOT/project/seed/seed.git" && git --git-dir="$BARE" config --local --get --bool core.bare
+ASSERT shared-bare.exit_code == 0
+ASSERT shared-bare.stdout == "false"
+RUN worktree-file: test -f "$BARE/config.worktree" && test "$(git --git-dir="$BARE" config --worktree --get core.worktree)" = "$CORE_WORKTREE"
+ASSERT worktree-file.exit_code == 0
+RUN shared-worktree: git --git-dir="$BARE" config --local --get core.worktree
+ASSERT shared-worktree.exit_code == 1
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0
+
+TEST "failed per-worktree configuration writes preserve the shared bare setting"
+
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n[safe]\nbareRepository = explicit\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed && mkdir -p "$ROOT/project/seed" "$ROOT/template"
+ASSERT seed.exit_code == 0
+RUN local-url: git config --file "$GIT_CONFIG_GLOBAL" "url.$ROOT/seed.insteadOf" https://grove.example.invalid/seed.git
+ASSERT local-url.exit_code == 0
+
+# Git copies template files into the clone. Pre-create the project directory so
+# failed init leaves the clone available for checking write-before-unset ordering.
+RUN lock: printf 'locked\n' > "$ROOT/template/config.worktree.lock" && export GIT_TEMPLATE_DIR="$ROOT/template"
+ASSERT lock.exit_code == 0
+RUN init: cd "$ROOT/project" && grove init https://grove.example.invalid/seed.git 2> "$ROOT/init-stderr"
+ASSERT init.exit_code == 1
+RUN write-error: grep -F 'Failed to initialize worktree configuration' "$ROOT/init-stderr" && ! grep -F 'Git 2.20' "$ROOT/init-stderr"
+ASSERT write-error.exit_code == 0
+RUN lock-copied: BARE="$ROOT/project/seed/seed.git" && test -f "$BARE/config.worktree.lock"
+ASSERT lock-copied.exit_code == 0
+RUN shared-bare: git --git-dir="$BARE" config --local --get --bool core.bare
+ASSERT shared-bare.exit_code == 0
+ASSERT shared-bare.stdout == "true"
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0
+
+TEST "worktree configuration prerequisite failures stop before cloning"
+
+RUN sandbox: ROOT=$(mktemp -d) && ROOT=$(cd "$ROOT" && pwd -P) && trap 'cd /; rm -rf "$ROOT"' EXIT
+ASSERT sandbox.exit_code == 0
+RUN config: export GIT_CONFIG_GLOBAL="$ROOT/git-config" GIT_CONFIG_NOSYSTEM=1 && printf '[user]\nname = Repro\nemail = repro@example.invalid\n[core]\nhooksPath =\n' > "$GIT_CONFIG_GLOBAL"
+ASSERT config.exit_code == 0
+RUN seed: git init --template= "$ROOT/seed" && git -C "$ROOT/seed" symbolic-ref HEAD refs/heads/main && git -C "$ROOT/seed" commit --allow-empty -m seed && mkdir -p "$ROOT/project" "$ROOT/bin" "$ROOT/legacy" "$ROOT/modern"
+ASSERT seed.exit_code == 0
+RUN local-url: git config --file "$GIT_CONFIG_GLOBAL" "url.$ROOT/seed.insteadOf" https://grove.example.invalid/seed.git
+ASSERT local-url.exit_code == 0
+
+# Stub only capability help and record clone attempts; real Git does everything else.
+RUN probe-wrapper: export REAL_GIT=$(command -v git) CLONE_LOG="$ROOT/clone-log" HELP_TEXT='usage: git config [options]' HELP_EXIT=129 && printf '%s\n' '#!/bin/sh' 'if [ "$1" = config ] && [ "$2" = --get ] && [ "$3" = -h ]; then' '  printf "%s\n" "$HELP_TEXT" >&2' '  exit "$HELP_EXIT"' 'fi' 'if [ "$1" = clone ]; then printf "clone\n" >> "$CLONE_LOG"; fi' 'exec "$REAL_GIT" "$@"' > "$ROOT/bin/git" && chmod +x "$ROOT/bin/git" && export PATH="$ROOT/bin:$PATH"
+ASSERT probe-wrapper.exit_code == 0
+RUN unsupported: cd "$ROOT/project" && grove init https://grove.example.invalid/seed.git
+ASSERT unsupported.exit_code == 1
+ASSERT unsupported.stderr contains "requires Git 2.20 or newer"
+RUN no-unsupported-clone: test ! -e "$CLONE_LOG" && test ! -e "$ROOT/project/seed"
+ASSERT no-unsupported-clone.exit_code == 0
+
+# A failing probe must not be mistaken for an unsupported feature, even if its
+# diagnostic happens to include the option name.
+RUN failing-probe: export HELP_TEXT='probe failure --worktree' HELP_EXIT=2 && grove init https://grove.example.invalid/seed.git 2> "$ROOT/probe-stderr"
+ASSERT failing-probe.exit_code == 1
+RUN probe-error: grep -F 'Failed to check Git worktree configuration support' "$ROOT/probe-stderr" && grep -F 'probe failure' "$ROOT/probe-stderr" && ! grep -F 'Git 2.20' "$ROOT/probe-stderr" && test ! -e "$CLONE_LOG" && test ! -e "$ROOT/project/seed"
+ASSERT probe-error.exit_code == 0
+
+# Option names are stable across translations, but newer Git displays optional
+# negation in help. Accept both spellings without inspecting a version string.
+RUN legacy-help: export HELP_TEXT='    --worktree  use per-worktree config' HELP_EXIT=129 && cd "$ROOT/legacy" && grove init https://grove.example.invalid/seed.git
+ASSERT legacy-help.exit_code == 0
+RUN modern-help: export HELP_TEXT='    --[no-]worktree  use per-worktree config' && cd "$ROOT/modern" && grove init https://grove.example.invalid/seed.git
+ASSERT modern-help.exit_code == 0
+RUN successful-clones: test "$(wc -l < "$CLONE_LOG")" -eq 2 && test -f "$ROOT/legacy/seed/seed.git/config.worktree" && test -f "$ROOT/modern/seed/seed.git/config.worktree"
+ASSERT successful-clones.exit_code == 0
+RUN cleanup: cd / && rm -rf "$ROOT"
+ASSERT cleanup.exit_code == 0

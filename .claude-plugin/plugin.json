@@ -1,0 +1,13 @@
+{
+  "name": "grove",
+  "version": "1.0.0",
+  "description": "Teaches agents the grove worktree workflow: cloning with grove init, starting and switching work, PR checkout, cleanup, and detecting grove-managed repositories.",
+  "author": {
+    "name": "Safia Abdalla",
+    "url": "https://github.com/captainsafia"
+  },
+  "repository": "https://github.com/captainsafia/grove",
+  "skills": [
+    "./skills/grove-workflow"
+  ]
+}

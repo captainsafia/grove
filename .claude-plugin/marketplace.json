@@ -1,0 +1,17 @@
+{
+  "name": "grove",
+  "description": "Marketplace for the grove worktree CLI - teaches agents how to use grove for cloning, branching, PR checkout, and cleanup.",
+  "owner": {
+    "name": "Safia Abdalla",
+    "url": "https://github.com/captainsafia"
+  },
+  "repository": "https://github.com/captainsafia/grove",
+  "plugins": [
+    {
+      "name": "grove",
+      "source": "./",
+      "version": "1.0.0",
+      "description": "Teaches agents the grove worktree workflow: cloning with grove init, starting and switching work, PR checkout, cleanup, and detecting grove-managed repositories."
+    }
+  ]
+}
